@@ -1,0 +1,107 @@
+#!/bin/sh
+
+: "${IFCONFIG:=/sbin/ifconfig}"
+: "${GREP:=/usr/bin/grep}"
+: "${GRUB_BHYVE:=/usr/local/sbin/grub-bhyve}"
+: "${BHYVE:=/usr/sbin/bhyve}"
+: "${SED:=/usr/bin/sed}"
+: "${ECHO:=/bin/echo}"
+: "${LOGGER:=/usr/bin/logger}"
+
+: "${DEVICE_MAP:=/usr/home/leif/arch/device.map}"
+: "${DISK_IMAGE:=/usr/home/leif/arch/linux.img}"
+: "${DOCKERBOX_VM:=dockerbox}"
+: "${DOCKERBOX_IF:=dockerbox0}"
+: "${DOCKERBOX_LOG:=/var/log/dockerbox.log}"
+
+memory=1024M
+cpu=1
+
+log() {
+    ${LOGGER} "$@" >> ${DOCKERBOX_LOG}
+}
+
+capture_output() {
+    local _type="$1"
+    local _id="$2"
+
+    while read -r message; do
+        log "${_type}" "[${_id}] ${message}"
+    done
+}
+
+has_bridge_interface() {
+    ${IFCONFIG} | ${GREP} -Fq "${DOCKERBOX_IF}: "
+}
+
+get_tap_interface() {
+    if has_bridge_interface; then
+        ${IFCONFIG} "${DOCKERBOX_IF}" | ${GREP} -F member | ${SED} -E 's/^.*member:.*(tap[^ ]*).*$/\1/'
+    else
+        ${ECHO} ""
+    fi
+}
+
+check_nat() {
+    local _tap
+    local _vtnet
+
+    if ! has_bridge_interface; then
+        log info "Creating bridge interface: ${DOCKERBOX_IF}"
+        ${IFCONFIG} bridge create name ${DOCKERBOX_IF} up 2>&1 | capture_output debug ifconfig
+    else
+        log warn "Bridge interface already exists: ${DOCKERBOX_IF}, skipping creation"
+    fi
+
+    ${IFCONFIG} ${DOCKERBOX_IF} inet 10.0.0.2/24
+    
+    _tap="$(get_tap_interface)"
+
+    if [ -z "${_tap}" ]; then
+        _tap="$(${IFCONFIG} tap create up)"
+        log info "Linking tap interface to ${DOCKERBOX_IF}: ${_tap}"
+        ${IFCONFIG} ${DOCKERBOX_IF} addm "${_tap}" 2>&1 | capture_output debug ifconfig
+    else
+        log warn "Linked tap interface already exists: ${_tap}, skipping creation"
+    fi
+}
+
+destroy_bridge() {
+    local _tap
+
+    _tap="$(get_tap_interface)"
+
+    log info "Destroying bridge interface: ${DOCKERBOX_IF}"
+    ${IFCONFIG} ${DOCKERBOX_IF} destroy 2>&1 | capture_output debug ifconfig
+
+    if [ -n "${_tap}" ]; then
+        log info "Destroying linked tap interface: ${_tap}"
+        ${IFCONFIG} "${_tap}" destroy 2>&1 | capture_output debug ifconfig
+    else
+        log warn "No linked tap inteface found for ${DOCKERBOX_IF}"
+    fi
+}
+
+dockerbox_start() {
+    check_nat 
+    local _tap="$(get_tap_interface)"
+    grub-bhyve -m ${DEVICE_MAP} -r hd0,msdos2 -M ${memory} ${DOCKERBOX_VM} 2>&1 | capture_output debug grub-bhyve 
+    ${BHYVE} -A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -c ${cpu} -m ${memory} ${DOCKERBOX_VM} 2>&1 | capture_output debug bhyve
+}
+
+dockerbox_stop() {
+    local _tap
+    bhyvectl --destroy --vm=${DOCKERBOX_VM}
+    destroy_bridge
+}
+
+#[ "$0" != "${SCRIPT}" ] && return 0
+
+#log debug "Program started as $0, with arguments: $*"
+command="$1"
+shift
+
+case ${command} in
+    start) dockerbox_start "$@";;
+    stop) dockerbox_stop "$@";;
+esac
