@@ -1,24 +1,32 @@
 #!/bin/sh
 
+GUEST_ROOT=/usr/local/share/dockerbox
+
 : "${IFCONFIG:=/sbin/ifconfig}"
 : "${GREP:=/usr/bin/grep}"
 : "${GRUB_BHYVE:=/usr/local/sbin/grub-bhyve}"
 : "${BHYVE:=/usr/sbin/bhyve}"
 : "${SED:=/usr/bin/sed}"
 : "${ECHO:=/bin/echo}"
-: "${LOGGER:=/usr/bin/logger}"
+: "${DAEMON:=/usr/sbin/daemon}"
+: "${ROUTE:=/sbin/route}"
 
-: "${DEVICE_MAP:=/usr/home/leif/arch/device.map}"
-: "${DISK_IMAGE:=/usr/home/leif/arch/linux.img}"
-: "${DOCKERBOX_VM:=dockerbox}"
-: "${DOCKERBOX_IF:=dockerbox0}"
-: "${DOCKERBOX_LOG:=/var/log/dockerbox.log}"
+: "${DOCKERBOX_IF_PRE:=10.0.0}"
+
+DOCKERBOX_IF_IP="${DOCKERBOX_IF_PRE}.1"
+DOCKERBOX_GATE="${DOCKER_IF_PRE}.0"
+DOCKERBOX_ROUTE_MASK=24
+DOCKERBOX_VM=dockerbox
+DOCKERBOX_IF=dockerbox0
+DOCKERBOX_LOG=/var/log/dockerbox.log
+DISK_IMAGE="${GUEST_ROOT}/disk.img"
+DEVICE_MAP="${GUEST_ROOT}/device.map"
 
 memory=1024M
 cpu=1
 
 log() {
-    ${LOGGER} "$@" >> ${DOCKERBOX_LOG}
+    ${ECHO} "$@" >> ${DOCKERBOX_LOG}
 }
 
 capture_output() {
@@ -53,7 +61,10 @@ check_nat() {
         log warn "Bridge interface already exists: ${DOCKERBOX_IF}, skipping creation"
     fi
 
-    ${IFCONFIG} ${DOCKERBOX_IF} inet 10.0.0.2/24
+    ${IFCONFIG} ${DOCKERBOX_IF} inet ${DOCKERBOX_IF_IP}/${DOCKERBOX_ROUTE_MASK}
+    if [ ! $(${ROUTE} get ${DOCKERBOX_IF_PRE}.3 | grep interface | cut -d' ' -f 2) == ${DOCKERBOX_IF} ]; then
+        ${ROUTE} add -net ${DOCKERBOX_IF_IP} ${DOCKERBOX_GATE} ${DOCKERBOX_ROUTE_MASK}
+    fi
     
     _tap="$(get_tap_interface)"
 
