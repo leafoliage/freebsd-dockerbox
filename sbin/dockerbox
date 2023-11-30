@@ -10,14 +10,18 @@ GUEST_ROOT=/usr/local/share/dockerbox
 : "${ECHO:=/bin/echo}"
 : "${DAEMON:=/usr/sbin/daemon}"
 : "${ROUTE:=/sbin/route}"
+: "${PFCTL:=/sbin/pfctl}"
 
 : "${DOCKERBOX_IF_PRE:=10.0.0}"
+: "${EXT_IF:=vtnet0}"
+: "${PF_CONF:=/etc/pf.conf}"
 
-DOCKERBOX_IF_IP="${DOCKERBOX_IF_PRE}.1"
-DOCKERBOX_GATE="${DOCKER_IF_PRE}.0"
-DOCKERBOX_ROUTE_MASK=24
-DOCKERBOX_VM=dockerbox
 DOCKERBOX_IF=dockerbox0
+DOCKERBOX_IF_IP="${DOCKERBOX_IF_PRE}.1"
+DOCKERBOX_GATE="${DOCKERBOX_IF_PRE}.0"
+DOCKERBOX_ROUTE_MASK=24
+DOCKERBOX_IF_IP_MASK="${DOCKERBOX_IF_IP}/${DOCKERBOX_ROUTE_MASK}"
+DOCKERBOX_VM=dockerbox
 DOCKERBOX_LOG=/var/log/dockerbox.log
 DISK_IMAGE="${GUEST_ROOT}/disk.img"
 DEVICE_MAP="${GUEST_ROOT}/device.map"
@@ -50,10 +54,24 @@ get_tap_interface() {
     fi
 }
 
-check_nat() {
-    local _tap
-    local _vtnet
+check_ext_if() {
+    echo ${IFCONFIG} | ${GREP} ${EXT_IF} -c
+}
 
+check_pf() {
+    local _nat_cnt=$(${PFCTL} -s nat | grep nat | grep ${DOCKERBOX_IF_IP_MASK} | grep ${EXT_IF} -c)
+    if [ $_nat_cnt -lt 1 ]; then
+        log warn "No pf NAT set up"
+        if [ $(check_ext_if) -lt 1 ]; then
+            log warn "External interface specified in settings not available"
+        else
+            log info "Adding pf NAT"
+            ${ECHO} "nat on ${EXT_IF} inet from ${DOCKERBOX_IF_IP_MASK} to any -> (${EXT_IF})" >> ${PF_CONF}
+        fi
+    fi
+}
+
+check_bridge() {
     if ! has_bridge_interface; then
         log info "Creating bridge interface: ${DOCKERBOX_IF}"
         ${IFCONFIG} bridge create name ${DOCKERBOX_IF} up 2>&1 | capture_output debug ifconfig
@@ -61,12 +79,14 @@ check_nat() {
         log warn "Bridge interface already exists: ${DOCKERBOX_IF}, skipping creation"
     fi
 
-    ${IFCONFIG} ${DOCKERBOX_IF} inet ${DOCKERBOX_IF_IP}/${DOCKERBOX_ROUTE_MASK}
-    if [ ! $(${ROUTE} get ${DOCKERBOX_IF_PRE}.3 | grep interface | cut -d' ' -f 2) == ${DOCKERBOX_IF} ]; then
-        ${ROUTE} add -net ${DOCKERBOX_IF_IP} ${DOCKERBOX_GATE} ${DOCKERBOX_ROUTE_MASK}
-    fi
-    
-    _tap="$(get_tap_interface)"
+    ${IFCONFIG} ${DOCKERBOX_IF} inet ${DOCKERBOX_IF_IP_MASK}
+    #if [ ! $(${ROUTE} get ${DOCKERBOX_IF_PRE}.3 | grep interface | cut -d' ' -f 2) == ${DOCKERBOX_IF} ]; then
+    ${ROUTE} add -net ${DOCKERBOX_IF_IP} ${DOCKERBOX_GATE} ${DOCKERBOX_ROUTE_MASK} | capture_output debug route
+    #fi
+}
+
+check_tap() {
+    local _tap="$(get_tap_interface)"
 
     if [ -z "${_tap}" ]; then
         _tap="$(${IFCONFIG} tap create up)"
@@ -75,6 +95,12 @@ check_nat() {
     else
         log warn "Linked tap interface already exists: ${_tap}, skipping creation"
     fi
+}
+
+check_nat() {
+    check_bridge
+    check_tap
+    check_pf
 }
 
 destroy_bridge() {
