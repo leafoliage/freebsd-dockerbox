@@ -12,7 +12,13 @@ GUEST_ROOT=/usr/local/share/dockerbox
 : "${ROUTE:=/sbin/route}"
 : "${PFCTL:=/sbin/pfctl}"
 : "${SYSCTL:=/sbin/sysctl}"
+: "${KLDSTAT:=/sbin/kldstat}"
+: "${TAIL:=/usr/bin/tail}"
+: "${HEAD:=/usr/bin/head}"
+: "${KLDLOAD:=/sbin/kldload}"
+: "${KLDUNLOAD:=/sbin/kldunload}"
 
+: "${VMM_KO:=/boot/kernel/vmm.ko}"
 : "${DOCKERBOX_IF_PRE:=10.0.0}"
 : "${EXT_IF:=vtnet0}"
 : "${PF_CONF:=/etc/pf.conf}"
@@ -140,7 +146,54 @@ destroy_bridge() {
     fi
 }
 
+assert_kmod_loaded() {
+    local _kmod="$1"
+    local _kmod_file
+
+    if [ -n "$2" ]; then
+        _kmod_file="$2"
+    else
+        _kmod_file="${_kmod}"
+    fi
+
+    log debug "assert loaded: kmod=${_kmod}, kmod_file=${_kmod_file}"
+
+    if ! ${KLDSTAT} -q -m "${_kmod}"; then
+        log debug "Kernel module ${_kmod} is not loaded"
+
+        if ! (${KLDLOAD} "${_kmod_file}" 2>&1 | capture_output debug kldload); then
+            log error "${_kmod_file} kernel module could not be loaded"
+            exit 127
+        fi
+
+        log debug "Kernel module ${_kmod} was loaded successfully"
+    fi
+}
+
+get_kmod_path() {
+    local _kmod="$1"
+    ${KLDSTAT} -v -n "${_kmod}" | ${TAIL} +2 | ${HEAD} -1 | ${SED} -e 's![^(]*(\([^)]*\))!\1!'
+}
+
+check_vmm() {
+    local _kmod_path
+
+    if ${KLDSTAT} -q -m vmm; then
+        _kmod_path="$(get_kmod_path vmm)"
+        log info "vmm.ko is expected at path: ${VMM_KO}"
+        log info "vmm.ko is found at path: ${_kmod_path}"
+
+        if [ "${_kmod_path}" != "${VMM_KO}" ] && ! ${KLDUNLOAD} vmm; then
+            log error "vmm.ko is loaded from a different location, but cannot be replaced"
+            exit 127
+        fi
+    fi
+    
+    assert_kmod_loaded "vmm" "${VMM_KO}"
+}
+
 dockerbox_start() {
+    check_vmm
     check_nat 
     local _tap="$(get_tap_interface)"
     #grub-bhyve -m ${DEVICE_MAP} -r hd0,msdos2 -M ${memory} ${DOCKERBOX_VM} 2>&1 | capture_output debug grub-bhyve 
