@@ -11,6 +11,7 @@ GUEST_ROOT=/usr/local/share/dockerbox
 : "${DAEMON:=/usr/sbin/daemon}"
 : "${ROUTE:=/sbin/route}"
 : "${PFCTL:=/sbin/pfctl}"
+: "${SYSCTL:=/sbin/sysctl}"
 
 : "${DOCKERBOX_IF_PRE:=10.0.0}"
 : "${EXT_IF:=vtnet0}"
@@ -41,6 +42,10 @@ capture_output() {
     while read -r message; do
         log "${_type}" "[${_id}] ${message}"
     done
+}
+
+sysctl_value() {
+    ${SYSCTL} -nq "$1"
 }
 
 has_bridge_interface() {
@@ -111,6 +116,9 @@ check_tap() {
 }
 
 check_nat() {
+    if [ $(sysctl_value net.inet.ip.forwarding) -eq 0 ]; then
+        ${SYSCTL} net.inet.ip.forwarding=1 | capture_output debug sysctl
+    fi
     check_bridge
     check_tap
     check_pf
