@@ -21,6 +21,7 @@ DOCKERBOX_IF_IP="${DOCKERBOX_IF_PRE}.1"
 DOCKERBOX_GATE="${DOCKERBOX_IF_PRE}.0"
 DOCKERBOX_ROUTE_MASK=24
 DOCKERBOX_IF_IP_MASK="${DOCKERBOX_IF_IP}/${DOCKERBOX_ROUTE_MASK}"
+DOCKERBOX_GATE_MASK="${DOCKERBOX_GATE}/${DOCKERBOX_ROUTE_MASK}"
 DOCKERBOX_VM=dockerbox
 DOCKERBOX_LOG=/var/log/dockerbox.log
 DISK_IMAGE="${GUEST_ROOT}/disk.img"
@@ -55,18 +56,27 @@ get_tap_interface() {
 }
 
 check_ext_if() {
-    echo ${IFCONFIG} | ${GREP} ${EXT_IF} -c
+    ${IFCONFIG} | ${GREP} ${EXT_IF} -c
 }
 
 check_pf() {
-    local _nat_cnt=$(${PFCTL} -s nat | grep nat | grep ${DOCKERBOX_IF_IP_MASK} | grep ${EXT_IF} -c)
+    local _nat_cnt
+
+    if [ ! $(${PFCTL} -s Running) == "Enabled" ]; then
+        log info "Enabling PF"
+        ${PFCTL} -e #| capture_output debug pfctl
+    fi
+
+    _nat_cnt=$(${PFCTL} -s nat | grep nat | grep ${DOCKERBOX_GATE_MASK} | grep ${EXT_IF} -c)
     if [ $_nat_cnt -lt 1 ]; then
         log warn "No pf NAT set up"
         if [ $(check_ext_if) -lt 1 ]; then
             log warn "External interface specified in settings not available"
         else
             log info "Adding pf NAT"
-            ${ECHO} "nat on ${EXT_IF} inet from ${DOCKERBOX_IF_IP_MASK} to any -> (${EXT_IF})" >> ${PF_CONF}
+            ${ECHO} "nat on ${EXT_IF} inet from ${DOCKERBOX_GATE_MASK} to any -> (${EXT_IF})" >> ${PF_CONF}
+            ${PFCTL} -d #> /dev/null #| capture_output debug pfctl
+            ${PFCTL} -e -f ${PF_CONF} #> /dev/null #| capture_output debug pfctl
         fi
     fi
 }
@@ -83,6 +93,9 @@ check_bridge() {
     #if [ ! $(${ROUTE} get ${DOCKERBOX_IF_PRE}.3 | grep interface | cut -d' ' -f 2) == ${DOCKERBOX_IF} ]; then
     ${ROUTE} add -net ${DOCKERBOX_IF_IP} ${DOCKERBOX_GATE} ${DOCKERBOX_ROUTE_MASK} | capture_output debug route
     #fi
+
+    ${IFCONFIG} ${DOCKERBOX_IF} group viid-4c918@
+    ${IFCONFIG} ${DOCKERBOX_IF} group vm-switch
 }
 
 check_tap() {
@@ -122,8 +135,10 @@ destroy_bridge() {
 dockerbox_start() {
     check_nat 
     local _tap="$(get_tap_interface)"
-    grub-bhyve -m ${DEVICE_MAP} -r hd0,msdos2 -M ${memory} ${DOCKERBOX_VM} 2>&1 | capture_output debug grub-bhyve 
-    ${BHYVE} -A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -c ${cpu} -m ${memory} ${DOCKERBOX_VM} 2>&1 | capture_output debug bhyve
+    #grub-bhyve -m ${DEVICE_MAP} -r hd0,msdos2 -M ${memory} ${DOCKERBOX_VM} 2>&1 | capture_output debug grub-bhyve 
+    #${BHYVE} -A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -c ${cpu} -m ${memory} ${DOCKERBOX_VM} 2>&1 | capture_output debug bhyve
+    grub-bhyve -m ${DEVICE_MAP} -r hd0,msdos2 -M ${memory} ${DOCKERBOX_VM} #2>&1 | capture_output debug grub-bhyve 
+    ${BHYVE} -A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -l com1,stdio -c ${cpu} -m ${memory} ${DOCKERBOX_VM} #2>&1 | capture_output debug bhyve
 }
 
 dockerbox_stop() {
