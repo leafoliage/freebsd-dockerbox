@@ -92,7 +92,7 @@ check_pf() {
     fi
 }
 
-check_bridge() {
+create_bridge() {
     if ! has_bridge_interface; then
         log info "Creating bridge interface: ${DOCKERBOX_IF}"
         ${IFCONFIG} bridge create name ${DOCKERBOX_IF} up 2>&1 | capture_output debug ifconfig
@@ -100,16 +100,23 @@ check_bridge() {
         log warn "Bridge interface already exists: ${DOCKERBOX_IF}, skipping creation"
     fi
 
-    ${IFCONFIG} ${DOCKERBOX_IF} inet ${DOCKERBOX_IF_IP_MASK}
+    ${IFCONFIG} ${DOCKERBOX_IF} inet ${DOCKERBOX_IF_IP_MASK} 2>&1 | capture_output debug ifconfig
     #if [ ! $(${ROUTE} get ${DOCKERBOX_IF_PRE}.3 | grep interface | cut -d' ' -f 2) == ${DOCKERBOX_IF} ]; then
-    ${ROUTE} add -net ${DOCKERBOX_IF_IP} ${DOCKERBOX_GATE} ${DOCKERBOX_ROUTE_MASK} | capture_output debug route
+    #${ROUTE} add -net ${DOCKERBOX_IF_IP} ${DOCKERBOX_GATE} ${DOCKERBOX_ROUTE_MASK} | capture_output debug route
     #fi
 
-    ${IFCONFIG} ${DOCKERBOX_IF} group viid-4c918@
-    ${IFCONFIG} ${DOCKERBOX_IF} group vm-switch
+    #${IFCONFIG} ${DOCKERBOX_IF} group viid-4c918@
+    #${IFCONFIG} ${DOCKERBOX_IF} group vm-switch
 }
 
-check_tap() {
+destroy_bridge() {
+    if [ has_bridge_interface ]; then
+        log info "Destroying bridge interface: ${DOCKERBOX_IF}"
+        ${IFCONFIG} ${DOCKERBOX_IF} destroy 2>&1 | capture_output debug ifconfig
+    fi
+}
+
+create_tap() {
     local _tap="$(get_tap_interface)"
 
     if [ -z "${_tap}" ]; then
@@ -121,29 +128,24 @@ check_tap() {
     fi
 }
 
-check_nat() {
-    if [ $(sysctl_value net.inet.ip.forwarding) -eq 0 ]; then
-        ${SYSCTL} net.inet.ip.forwarding=1 | capture_output debug sysctl
-    fi
-    check_bridge
-    check_tap
-    check_pf
-}
-
-destroy_bridge() {
-    local _tap
-
-    _tap="$(get_tap_interface)"
-
-    log info "Destroying bridge interface: ${DOCKERBOX_IF}"
-    ${IFCONFIG} ${DOCKERBOX_IF} destroy 2>&1 | capture_output debug ifconfig
+destroy_tap() {
+    local _tap="$(get_tap_interface)"
 
     if [ -n "${_tap}" ]; then
         log info "Destroying linked tap interface: ${_tap}"
-        ${IFCONFIG} "${_tap}" destroy 2>&1 | capture_output debug ifconfig
-    else
-        log warn "No linked tap inteface found for ${DOCKERBOX_IF}"
+        ${IFCONFIG} ${_tap} destroy 2>&1 | capture_output debug ifconfig
     fi
+}
+
+check_nat() {
+    local _tap
+
+    if [ $(sysctl_value net.inet.ip.forwarding) -eq 0 ]; then
+        ${SYSCTL} net.inet.ip.forwarding=1 | capture_output debug sysctl
+    fi
+    create_bridge
+    create_tap
+    check_pf
 }
 
 assert_kmod_loaded() {
@@ -205,6 +207,7 @@ dockerbox_start() {
 dockerbox_stop() {
     local _tap
     bhyvectl --destroy --vm=${DOCKERBOX_VM}
+    destroy_tap
     destroy_bridge
 }
 
