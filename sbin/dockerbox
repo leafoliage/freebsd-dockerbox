@@ -17,6 +17,8 @@ GUEST_ROOT=/usr/local/share/dockerbox
 : "${HEAD:=/usr/bin/head}"
 : "${KLDLOAD:=/sbin/kldload}"
 : "${KLDUNLOAD:=/sbin/kldunload}"
+: "${KILL:=/bin/kill}"
+: "${PGREP:=/bin/pgrep}"
 
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
 : "${DOCKERBOX_IF_PRE:=10.0.0}"
@@ -33,6 +35,7 @@ DOCKERBOX_VM=dockerbox
 DOCKERBOX_LOG=/var/log/dockerbox.log
 DISK_IMAGE="${GUEST_ROOT}/disk.img"
 DEVICE_MAP="${GUEST_ROOT}/device.map"
+VM_MANAGER_DAEMON_ID="dockerbox-vm-manager"
 
 memory=1024M
 cpu=1
@@ -194,21 +197,39 @@ check_vmm() {
     assert_kmod_loaded "vmm" "${VMM_KO}"
 }
 
-dockerbox_start() {
+get_vm_manager_pid() {
+    ${PGREP} -fx "daemon: ${VM_MANAGER_DAEMON_ID}\[[0-9]*\]"
+}
+
+vm_manager() {
     check_vmm
     check_nat 
     local _tap="$(get_tap_interface)"
-    #grub-bhyve -m ${DEVICE_MAP} -r hd0,msdos2 -M ${memory} ${DOCKERBOX_VM} 2>&1 | capture_output debug grub-bhyve 
-    #${BHYVE} -A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -c ${cpu} -m ${memory} ${DOCKERBOX_VM} 2>&1 | capture_output debug bhyve
-    grub-bhyve -m ${DEVICE_MAP} -r hd0,msdos2 -M ${memory} ${DOCKERBOX_VM} #2>&1 | capture_output debug grub-bhyve 
-    ${BHYVE} -A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -l com1,stdio -c ${cpu} -m ${memory} ${DOCKERBOX_VM} #2>&1 | capture_output debug bhyve
+    grub-bhyve -m ${DEVICE_MAP} -r hd0,msdos2 -M ${memory} ${DOCKERBOX_VM} 2>&1 | capture_output debug grub-bhyve  
+    ${BHYVE} -A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -c ${cpu} -m ${memory} ${DOCKERBOX_VM} 2>&1 | capture_output debug bhyve
+}
+
+dockerbox_start() {
+    ${DAEMON} -r -t "${VM_MANAGER_DAEMON_ID}" "${0}" _manage_vm
+}
+
+dockerbox_console() {
+    check_vmm
+    check_nat 
+    local _tap="$(get_tap_interface)"
+    grub-bhyve -m ${DEVICE_MAP} -r hd0,msdos2 -M ${memory} ${DOCKERBOX_VM}  
+    ${DAEMON} -r -t "${VM_MANAGER_DAEMON_ID}" ${BHYVE} -A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -l com1,stdio -c ${cpu} -m ${memory} ${DOCKERBOX_VM} 
 }
 
 dockerbox_stop() {
-    local _tap
+    local _pid
+    _pid="$(get_vm_manager_pid)"
+    log info "Stopping guest ${DOCKERBOX_VM}, managed by PID ${_pid}"
+    ${KILL} -SIGTERM "${_pid}" 2>&1 | capture_output debug kill
     bhyvectl --destroy --vm=${DOCKERBOX_VM}
     destroy_tap
     destroy_bridge
+    ${KILL} -SIGTERM $PPID
 }
 
 #[ "$0" != "${SCRIPT}" ] && return 0
@@ -220,4 +241,6 @@ shift
 case ${command} in
     start) dockerbox_start "$@";;
     stop) dockerbox_stop "$@";;
+    console) dockerbox_console "$@";;
+    _manage_vm) vm_manager;;
 esac
