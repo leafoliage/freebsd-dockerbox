@@ -225,7 +225,7 @@ dockerbox_console() {
     check_nat 
     local _tap="$(get_tap_interface)"
     grub-bhyve -m ${DEVICE_MAP} -r hd0,msdos2 -M ${memory} ${DOCKERBOX_VM}  
-    ${DAEMON} -r -t "${VM_MANAGER_DAEMON_ID}" ${BHYVE} -A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -l com1,stdio -c ${cpu} -m ${memory} ${DOCKERBOX_VM} 
+    ${BHYVE} -A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -l com1,stdio -c ${cpu} -m ${memory} ${DOCKERBOX_VM} 
 }
 
 dockerbox_stop() {
