@@ -234,6 +234,10 @@ get_vm_manager_pid() {
 }
 
 vm_manager() {
+    local _tap
+    local _grub_args
+    local _bhyve_args
+
     check_configuration ${CONFIG}
     
     cpu=1
@@ -244,21 +248,23 @@ vm_manager() {
 
     check_vmm
     check_nat 
-    local _tap="$(get_tap_interface)"
-    grub-bhyve -m ${DEVICE_MAP} -r hd0,msdos2 -M ${memory} ${DOCKERBOX_VM} 2>&1 | capture_output debug grub-bhyve  
-    ${BHYVE} -A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -c ${cpu} -m ${memory} ${DOCKERBOX_VM} 2>&1 | capture_output debug bhyve
+
+    _tap="$(get_tap_interface)"
+    _grub_args="-m ${DEVICE_MAP} -r hd0,msdos2 -M ${memory}"
+    _bhyve_args="-A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -c ${cpu} -m ${memory}"
+    
+    if [ "$1" == "console" ]; then
+        _bhyve_args="${_bhyve_args} -l com1,stdio"
+        grub-bhyve ${_grub_args} ${DOCKERBOX_VM}   
+        ${BHYVE} ${_bhyve_args} ${DOCKERBOX_VM} 
+    else
+        grub-bhyve ${_grub_args} ${DOCKERBOX_VM} 2>&1 | capture_output debug grub-bhyve  
+        ${BHYVE} ${_bhyve_args} ${DOCKERBOX_VM} 2>&1 | capture_output debug bhyve
+    fi
 }
 
 dockerbox_start() {
     ${DAEMON} -r -t "${VM_MANAGER_DAEMON_ID}" "${0}" _manage_vm
-}
-
-dockerbox_console() {
-    check_vmm
-    check_nat 
-    local _tap="$(get_tap_interface)"
-    grub-bhyve -m ${DEVICE_MAP} -r hd0,msdos2 -M ${memory} ${DOCKERBOX_VM}  
-    ${BHYVE} -A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -l com1,stdio -c ${cpu} -m ${memory} ${DOCKERBOX_VM} 
 }
 
 dockerbox_stop() {
@@ -298,7 +304,7 @@ shift
 case ${command} in
     start) dockerbox_start "$@";;
     stop) dockerbox_stop "$@";;
-    console) dockerbox_console "$@";;
+    console) vm_manager console;;
     status) dockerbox_status ;;
     _manage_vm) vm_manager;;
 esac
