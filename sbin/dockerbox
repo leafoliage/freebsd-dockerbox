@@ -1,6 +1,7 @@
 #!/bin/sh
 
 GUEST_ROOT=/usr/local/share/dockerbox
+CONF_DIR=/usr/local/etc/dockerbox
 
 : "${IFCONFIG:=/sbin/ifconfig}"
 : "${GREP:=/usr/bin/grep}"
@@ -26,19 +27,16 @@ GUEST_ROOT=/usr/local/share/dockerbox
 : "${PF_CONF:=/etc/pf.conf}"
 
 DOCKERBOX_IF=dockerbox0
-DOCKERBOX_IF_IP="${DOCKERBOX_IF_PRE}.1"
 DOCKERBOX_GATE="${DOCKERBOX_IF_PRE}.0"
 DOCKERBOX_ROUTE_MASK=24
-DOCKERBOX_IF_IP_MASK="${DOCKERBOX_IF_IP}/${DOCKERBOX_ROUTE_MASK}"
-DOCKERBOX_GATE_MASK="${DOCKERBOX_GATE}/${DOCKERBOX_ROUTE_MASK}"
+DOCKERBOX_GATE_MASK="10.0.0.1/24"
+#DOCKERBOX_GATE_MASK="${DOCKERBOX_GATE}/${DOCKERBOX_ROUTE_MASK}"
 DOCKERBOX_VM=dockerbox
 DOCKERBOX_LOG=/var/log/dockerbox.log
 DISK_IMAGE="${GUEST_ROOT}/disk.img"
 DEVICE_MAP="${GUEST_ROOT}/device.map"
 VM_MANAGER_DAEMON_ID="dockerbox-vm-manager"
-
-memory=1024M
-cpu=1
+CONFIG="${CONF_DIR}/dockerbox.conf"
 
 log() {
     ${ECHO} "$@" >> ${DOCKERBOX_LOG}
@@ -62,6 +60,15 @@ capture_output() {
 
 sysctl_value() {
     ${SYSCTL} -nq "$1"
+}
+
+check_configuration() {
+    local _file="$1"
+
+    if [ ! -f "${_file}" ]; then
+    	log error "${_file} is missing, please create it from the sample"
+	    exit 3
+    fi
 }
 
 has_bridge_interface() {
@@ -88,16 +95,26 @@ check_pf() {
         ${PFCTL} -e #| capture_output debug pfctl
     fi
 
-    _nat_cnt=$(${PFCTL} -s nat | grep nat | grep ${DOCKERBOX_GATE_MASK} | grep ${EXT_IF} -c)
+    check_configuration ${PF_CONF}
+    check_configuration ${CONFIG}
+
+    nat_ip="10.0.0.1"
+    nat_mask=24
+
+    log info "Pulling options from configuration file"
+    . ${CONFIG}
+
+    nat_keyword="$(echo ${nat_ip} | cut -d'.' -f1-3).0/${nat_mask}"
+
+    _nat_cnt=$(${PFCTL} -s nat | grep nat | grep ${nat_keyword} | grep ${EXT_IF} -c)
     if [ $_nat_cnt -lt 1 ]; then
         log warn "No pf NAT set up"
         if [ $(check_ext_if) -lt 1 ]; then
             log warn "External interface specified in settings not available"
         else
             log info "Adding pf NAT"
-            ${ECHO} "nat on ${EXT_IF} inet from ${DOCKERBOX_GATE_MASK} to any -> (${EXT_IF})" >> ${PF_CONF}
-            ${PFCTL} -d #> /dev/null #| capture_output debug pfctl
-            ${PFCTL} -e -f ${PF_CONF} #> /dev/null #| capture_output debug pfctl
+            ${ECHO} "nat on ${EXT_IF} inet from ${nat_keyword} to any -> (${EXT_IF})" >> ${PF_CONF}
+            ${PFCTL} -f ${PF_CONF} | capture_output debug pfctl
         fi
     fi
 }
@@ -110,7 +127,15 @@ create_bridge() {
         log warn "Bridge interface already exists: ${DOCKERBOX_IF}, skipping creation"
     fi
 
-    ${IFCONFIG} ${DOCKERBOX_IF} inet ${DOCKERBOX_IF_IP_MASK} 2>&1 | capture_output debug ifconfig
+    check_configuration ${CONFIG}
+    
+    nat_ip="10.0.0.1"
+    nat_mask=24
+
+    log info "Pulling options from configuration file"
+    . ${CONFIG}
+
+    ${IFCONFIG} ${DOCKERBOX_IF} inet ${nat_ip}/${nat_mask} 2>&1 | capture_output debug ifconfig
     #if [ ! $(${ROUTE} get ${DOCKERBOX_IF_PRE}.3 | grep interface | cut -d' ' -f 2) == ${DOCKERBOX_IF} ]; then
     #${ROUTE} add -net ${DOCKERBOX_IF_IP} ${DOCKERBOX_GATE} ${DOCKERBOX_ROUTE_MASK} | capture_output debug route
     #fi
@@ -209,6 +234,14 @@ get_vm_manager_pid() {
 }
 
 vm_manager() {
+    check_configuration ${CONFIG}
+    
+    cpu=1
+    memory=512M
+
+    log info "Pulling options from configuration file"
+    . ${CONFIG}
+
     check_vmm
     check_nat 
     local _tap="$(get_tap_interface)"
