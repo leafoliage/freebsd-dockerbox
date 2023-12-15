@@ -44,6 +44,13 @@ log() {
     ${ECHO} "$@" >> ${DOCKERBOX_LOG}
 }
 
+output() {
+    local _message="$1"
+
+    log info "Output: ${_message}"
+    ${ECHO} "${_message}."
+}
+
 capture_output() {
     local _type="$1"
     local _id="$2"
@@ -232,6 +239,23 @@ dockerbox_stop() {
     ${KILL} -SIGTERM $PPID
 }
 
+dockerbox_status() {
+    local _pid
+
+    log info "Begin: dockerbox status"
+
+    _pid="$(get_vm_manager_pid)"
+
+    if [ -n "${_pid}" ]; then
+	    output "dockerbox is running as pid ${_pid}"
+    else
+	    output "dockerbox is not running"
+	    return 1
+    fi
+
+    log info "End: wifibox status"
+}
+
 #[ "$0" != "${SCRIPT}" ] && return 0
 
 #log debug "Program started as $0, with arguments: $*"
@@ -242,5 +266,6 @@ case ${command} in
     start) dockerbox_start "$@";;
     stop) dockerbox_stop "$@";;
     console) dockerbox_console "$@";;
+    status) dockerbox_status ;;
     _manage_vm) vm_manager;;
 esac
