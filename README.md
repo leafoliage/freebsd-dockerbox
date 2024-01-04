@@ -19,6 +19,10 @@ cp freebsd-dockerbox/etc/dockerbox.conf /usr/local/etc/dockerbox
 cp freebsd-dockerbox/sbin/dockerbox /usr/local/sbin
 ```
 
+```sh
+pkg install docker
+```
+
 ## Usage
 
 Starting dockerbox
@@ -26,6 +30,14 @@ Starting dockerbox
 ```sh
 sudo dockerbox start
 ```
+
+Run docker with dockerbox
+
+```sh
+docker -H 10.0.0.3 run hello-world
+```
+
+> The ip address of dockerbox is currently fixed to 10.0.0.3
 
 Stopping dockerbox
 
