@@ -20,8 +20,10 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${KLDUNLOAD:=/sbin/kldunload}"
 : "${KILL:=/bin/kill}"
 : "${PGREP:=/bin/pgrep}"
+: "${TOUCH:=/usr/bin/touch}"
 
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
+: "${PF_KO:=/boot/kernel/pf.ko}"
 : "${DOCKERBOX_IF_PRE:=10.0.0}"
 : "${EXT_IF:=vtnet0}"
 : "${PF_CONF:=/etc/pf.conf}"
@@ -87,15 +89,44 @@ check_ext_if() {
     ${IFCONFIG} | ${GREP} ${EXT_IF} -c
 }
 
+assert_kmod_loaded() {
+    local _kmod="$1"
+    local _kmod_file
+
+    if [ -n "$2" ]; then
+        _kmod_file="$2"
+    else
+        _kmod_file="${_kmod}"
+    fi
+
+    log debug "assert loaded: kmod=${_kmod}, kmod_file=${_kmod_file}"
+
+    if ! ${KLDSTAT} -q -m "${_kmod}"; then
+        log debug "Kernel module ${_kmod} is not loaded"
+
+        if ! (${KLDLOAD} "${_kmod_file}" 2>&1 | capture_output debug kldload); then
+            log error "${_kmod_file} kernel module could not be loaded"
+            exit 127
+        fi
+
+        log debug "Kernel module ${_kmod} was loaded successfully"
+    fi
+}
+
 check_pf() {
     local _nat_cnt
+
+    assert_kmod_loaded "pf" "${PF_KO}"
 
     if [ ! $(${PFCTL} -s Running) == "Enabled" ]; then
         log info "Enabling PF"
         ${PFCTL} -e #| capture_output debug pfctl
     fi
 
-    check_configuration ${PF_CONF}
+    #check_configuration ${PF_CONF}
+    if [ ! -f "${PF_CONF}" ]; then
+        ${TOUCH} ${PF_CONF}
+    fi
     check_configuration ${CONFIG}
 
     nat_ip="10.0.0.1"
@@ -181,30 +212,6 @@ check_nat() {
     create_bridge
     create_tap
     check_pf
-}
-
-assert_kmod_loaded() {
-    local _kmod="$1"
-    local _kmod_file
-
-    if [ -n "$2" ]; then
-        _kmod_file="$2"
-    else
-        _kmod_file="${_kmod}"
-    fi
-
-    log debug "assert loaded: kmod=${_kmod}, kmod_file=${_kmod_file}"
-
-    if ! ${KLDSTAT} -q -m "${_kmod}"; then
-        log debug "Kernel module ${_kmod} is not loaded"
-
-        if ! (${KLDLOAD} "${_kmod_file}" 2>&1 | capture_output debug kldload); then
-            log error "${_kmod_file} kernel module could not be loaded"
-            exit 127
-        fi
-
-        log debug "Kernel module ${_kmod} was loaded successfully"
-    fi
 }
 
 get_kmod_path() {
