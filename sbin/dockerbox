@@ -25,7 +25,7 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
 : "${PF_KO:=/boot/kernel/pf.ko}"
 : "${DOCKERBOX_IF_PRE:=10.0.0}"
-: "${EXT_IF:=vtnet0}"
+#: "${EXT_IF:=vtnet0}"
 : "${PF_CONF:=/etc/pf.conf}"
 
 DOCKERBOX_IF=dockerbox0
@@ -86,7 +86,9 @@ get_tap_interface() {
 }
 
 check_ext_if() {
-    ${IFCONFIG} | ${GREP} ${EXT_IF} -c
+    log info "Pulling options from configuration file"
+    . ${CONFIG}
+    ${IFCONFIG} | ${GREP} ${ext_if} -c
 }
 
 assert_kmod_loaded() {
@@ -113,9 +115,13 @@ assert_kmod_loaded() {
     fi
 }
 
-check_pf() {
-    local _nat_cnt
+nat_count() {
+    local _nat_keyword="$1"
+    local _ext_if="$2"
+    ${PFCTL} -s nat | grep nat | grep ${_nat_keyword} | grep ${_ext_if} -c
+}
 
+check_pf() {
     assert_kmod_loaded "pf" "${PF_KO}"
 
     if [ ! $(${PFCTL} -s Running) == "Enabled" ]; then
@@ -123,8 +129,9 @@ check_pf() {
         ${PFCTL} -e #| capture_output debug pfctl
     fi
 
-    #check_configuration ${PF_CONF}
     if [ ! -f "${PF_CONF}" ]; then
+	log warn "No pf configuration found"
+	log info "Creating empty pf configuration ${PF_CONF}"
         ${TOUCH} ${PF_CONF}
     fi
     check_configuration ${CONFIG}
@@ -137,15 +144,18 @@ check_pf() {
 
     nat_keyword="$(echo ${nat_ip} | cut -d'.' -f1-3).0/${nat_mask}"
 
-    _nat_cnt=$(${PFCTL} -s nat | grep nat | grep ${nat_keyword} | grep ${EXT_IF} -c)
-    if [ $_nat_cnt -lt 1 ]; then
+    if [ $(nat_count ${nat_keyword} ${ext_if}) -lt 1 ]; then
         log warn "No pf NAT set up"
         if [ $(check_ext_if) -lt 1 ]; then
             log warn "External interface specified in settings not available"
         else
-            log info "Adding pf NAT"
-            ${ECHO} "nat on ${EXT_IF} inet from ${nat_keyword} to any -> (${EXT_IF})" >> ${PF_CONF}
-            ${PFCTL} -f ${PF_CONF} | capture_output debug pfctl
+            log info "Writing NAT rule into ${PF_CONF}"
+            ${ECHO} "nat on ${ext_if} inet from ${nat_keyword} to any -> (${ext_if})" >> ${PF_CONF}
+	    log info "Loading pf conf ${PF_CONF}"
+            ${PFCTL} -f ${PF_CONF} #| capture_output debug pfctl
+	    if [ $(nat_count ${nat_keyword} ${ext_if}) -lt 1 ]; then
+		log warn "Failed to load pf NAT with ${PF_CONF}"
+	    fi
         fi
     fi
 }
