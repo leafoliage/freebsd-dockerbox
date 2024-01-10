@@ -40,6 +40,15 @@ DEVICE_MAP="${GUEST_ROOT}/device.map"
 VM_MANAGER_DAEMON_ID="dockerbox-vm-manager"
 CONFIG="${CONF_DIR}/dockerbox.conf"
 
+help_msg="Usage: sudo dockerbox [command]
+
+command:
+start	start dockerbox
+stop	stop dockerbox
+console	start dockerbox and connect to console
+status	show dockerbox status
+"
+
 log() {
     ${ECHO} "$@" >> ${DOCKERBOX_LOG}
 }
@@ -324,4 +333,5 @@ case ${command} in
     console) vm_manager console;;
     status) dockerbox_status ;;
     _manage_vm) vm_manager;;
+    *) echo "${help_msg}";;
 esac
