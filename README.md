@@ -31,6 +31,12 @@ Install docker client.
 pkg install docker
 ```
 
+Modify the external interface specified in `/usr/local/etc/dockerbox/dockerbox.conf` for connecting to the Internet
+
+```
+ext_if="ue0"
+```
+
 ## Usage
 
 Starting dockerbox
@@ -52,3 +58,5 @@ Stopping dockerbox
 ```sh
 sudo dockerbox stop
 ```
+
+Log is at `/var/log/dockerbox.log`
