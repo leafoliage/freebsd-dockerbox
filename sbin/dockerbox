@@ -50,7 +50,13 @@ status	show dockerbox status
 "
 
 log() {
-    ${ECHO} "$@" >> ${DOCKERBOX_LOG}
+    local _level="$1"
+    local _message="$2"
+    local _timestamp
+
+    _level="$(${ECHO} $_level | tr "[:lower:]" "[:upper:]")"
+    _timestamp="$(date +'%FT%H:%M:%S%z')"
+    ${ECHO} "${_timestamp} ${_level} ${_message}" >> ${DOCKERBOX_LOG}
 }
 
 output() {
