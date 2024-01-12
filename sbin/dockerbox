@@ -24,15 +24,9 @@ CONF_DIR=/usr/local/etc/dockerbox
 
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
 : "${PF_KO:=/boot/kernel/pf.ko}"
-: "${DOCKERBOX_IF_PRE:=10.0.0}"
-#: "${EXT_IF:=vtnet0}"
 : "${PF_CONF:=/etc/pf.conf}"
 
 DOCKERBOX_IF=dockerbox0
-DOCKERBOX_GATE="${DOCKERBOX_IF_PRE}.0"
-DOCKERBOX_ROUTE_MASK=24
-DOCKERBOX_GATE_MASK="10.0.0.1/24"
-#DOCKERBOX_GATE_MASK="${DOCKERBOX_GATE}/${DOCKERBOX_ROUTE_MASK}"
 DOCKERBOX_VM=dockerbox
 DOCKERBOX_LOG=/var/log/dockerbox.log
 DISK_IMAGE="${GUEST_ROOT}/disk.img"
@@ -101,7 +95,6 @@ get_tap_interface() {
 }
 
 check_ext_if() {
-    log info "Pulling options from configuration file"
     . ${CONFIG}
     ${IFCONFIG} | ${GREP} ${ext_if} -c
 }
@@ -133,6 +126,7 @@ assert_kmod_loaded() {
 nat_count() {
     local _nat_keyword="$1"
     local _ext_if="$2"
+    log debug "assert NAT loaded: nat_if=${_nat_keyword} ext_if=${_ext_if}"
     ${PFCTL} -s nat | grep nat | grep ${_nat_keyword} | grep ${_ext_if} -c
 }
 
@@ -141,12 +135,12 @@ check_pf() {
 
     if [ ! $(${PFCTL} -s Running) == "Enabled" ]; then
         log info "Enabling PF"
-        ${PFCTL} -e #| capture_output debug pfctl
+        ${PFCTL} -e
     fi
 
     if [ ! -f "${PF_CONF}" ]; then
-	log warn "No pf configuration found"
-	log info "Creating empty pf configuration ${PF_CONF}"
+	    log warn "No pf configuration found"
+	    log info "Creating empty pf configuration ${PF_CONF}"
         ${TOUCH} ${PF_CONF}
     fi
     check_configuration ${CONFIG}
@@ -166,11 +160,11 @@ check_pf() {
         else
             log info "Writing NAT rule into ${PF_CONF}"
             ${ECHO} "nat on ${ext_if} inet from ${nat_keyword} to any -> (${ext_if})" >> ${PF_CONF}
-	    log info "Loading pf conf ${PF_CONF}"
-            ${PFCTL} -f ${PF_CONF} #| capture_output debug pfctl
-	    if [ $(nat_count ${nat_keyword} ${ext_if}) -lt 1 ]; then
-		log warn "Failed to load pf NAT with ${PF_CONF}"
-	    fi
+	        log info "Loading pf conf ${PF_CONF}"
+            ${PFCTL} -f ${PF_CONF} 
+	        if [ $(nat_count ${nat_keyword} ${ext_if}) -lt 1 ]; then
+		        log warn "Failed to load pf NAT with ${PF_CONF}"
+	        fi
         fi
     fi
 }
@@ -192,12 +186,6 @@ create_bridge() {
     . ${CONFIG}
 
     ${IFCONFIG} ${DOCKERBOX_IF} inet ${nat_ip}/${nat_mask} 2>&1 | capture_output debug ifconfig
-    #if [ ! $(${ROUTE} get ${DOCKERBOX_IF_PRE}.3 | grep interface | cut -d' ' -f 2) == ${DOCKERBOX_IF} ]; then
-    #${ROUTE} add -net ${DOCKERBOX_IF_IP} ${DOCKERBOX_GATE} ${DOCKERBOX_ROUTE_MASK} | capture_output debug route
-    #fi
-
-    #${IFCONFIG} ${DOCKERBOX_IF} group viid-4c918@
-    #${IFCONFIG} ${DOCKERBOX_IF} group vm-switch
 }
 
 destroy_bridge() {
@@ -289,10 +277,14 @@ vm_manager() {
     
     if [ "$1" == "console" ]; then
         _bhyve_args="${_bhyve_args} -l com1,stdio"
-        ${GRUB_BHYVE} ${_grub_args} ${DOCKERBOX_VM}   
+        log debug "Grub arguments: ${_grub_args}"
+        ${GRUB_BHYVE} ${_grub_args} ${DOCKERBOX_VM}
+        log debug "Bhyve arguments: ${_bhyve_args}"
         ${BHYVE} ${_bhyve_args} ${DOCKERBOX_VM} 
     else
+        log debug "Grub arguments: ${_grub_args}"
         ${GRUB_BHYVE} ${_grub_args} ${DOCKERBOX_VM} 2>&1 | capture_output debug grub-bhyve  
+        log debug "Bhyve arguments: ${_bhyve_args}"
         ${BHYVE} ${_bhyve_args} ${DOCKERBOX_VM} 2>&1 | capture_output debug bhyve
     fi
 }
@@ -310,8 +302,10 @@ dockerbox_start() {
     fi
 
     if [ "${_run_console}" == "console" ]; then
+        log info "dockerbox_start: console mode"
         vm_manager console
     else
+        log info "dockerbox_start: normal mode"
         ${DAEMON} -r -t "${VM_MANAGER_DAEMON_ID}" "${0}" _manage_vm
     fi
 }
@@ -325,7 +319,7 @@ dockerbox_stop() {
     destroy_tap
     destroy_bridge
     ${KILL} -SIGTERM $PPID
-    log info "Dockerbox stopped"
+    log info "Dockerbox stopped: killed pid=${_pid} and ppid=${PPID}"
 }
 
 dockerbox_status() {
@@ -347,7 +341,8 @@ dockerbox_status() {
 
 #[ "$0" != "${SCRIPT}" ] && return 0
 
-#log debug "Program started as $0, with arguments: $*"
+log debug "Program started as $0, with arguments: $*"
+
 command="$1"
 shift
 
