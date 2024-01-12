@@ -1,0 +1,26 @@
+#! /bin/sh
+
+# PROVIDE: dockerbox
+# BEFORE: netif
+# REQUIRE: FILESYSTEMS sysctl kld
+# KEYWORD: shutdown nojail suspend resume
+
+. /etc/rc.subr
+
+: ${dockerbox_enable="NO"}
+
+name=dockerbox
+desc="Manage dockerbox on boot, shutdown, suspend, and resume"
+rcvar=dockerbox_enable
+extra_commands="suspend resume"
+
+load_rc_config ${name}
+
+command="/usr/local/sbin/${name}"
+start_cmd="${command} start"
+stop_cmd="${command} stop"
+status_cmd="${command} status"
+suspend_cmd="/usr/bin/true"
+resume_cmd="${command} restart vmm"
+
+run_rc_command "$1"
