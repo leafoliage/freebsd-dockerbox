@@ -23,6 +23,7 @@ git clone https://github.com/leafoliage/freebsd-dockerbox.git
 mkdir -p /usr/local/etc/dockerbox
 cp freebsd-dockerbox/etc/dockerbox.conf /usr/local/etc/dockerbox
 cp freebsd-dockerbox/sbin/dockerbox /usr/local/sbin
+cp freebsd-dockerbox/rc.d/dockerbox /usr/local/etc/rc.d
 ```
 
 Install docker client.
@@ -57,6 +58,12 @@ Stopping dockerbox
 
 ```sh
 sudo dockerbox stop
+```
+
+Running dockerbox as service
+
+```sh
+sudo service dockerbox start
 ```
 
 Log is at `/var/log/dockerbox.log`
