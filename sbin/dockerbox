@@ -270,6 +270,8 @@ vm_manager() {
     local _grub_args
     local _bhyve_args
 
+    log info "Starting dockerbox"
+
     check_configuration ${CONFIG}
     
     cpu=1
@@ -287,10 +289,10 @@ vm_manager() {
     
     if [ "$1" == "console" ]; then
         _bhyve_args="${_bhyve_args} -l com1,stdio"
-        grub-bhyve ${_grub_args} ${DOCKERBOX_VM}   
+        ${GRUB_BHYVE} ${_grub_args} ${DOCKERBOX_VM}   
         ${BHYVE} ${_bhyve_args} ${DOCKERBOX_VM} 
     else
-        grub-bhyve ${_grub_args} ${DOCKERBOX_VM} 2>&1 | capture_output debug grub-bhyve  
+        ${GRUB_BHYVE} ${_grub_args} ${DOCKERBOX_VM} 2>&1 | capture_output debug grub-bhyve  
         ${BHYVE} ${_bhyve_args} ${DOCKERBOX_VM} 2>&1 | capture_output debug bhyve
     fi
 }
@@ -308,6 +310,7 @@ dockerbox_stop() {
     destroy_tap
     destroy_bridge
     ${KILL} -SIGTERM $PPID
+    log info "Dockerbox stopped"
 }
 
 dockerbox_status() {
