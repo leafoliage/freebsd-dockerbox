@@ -298,7 +298,22 @@ vm_manager() {
 }
 
 dockerbox_start() {
-    ${DAEMON} -r -t "${VM_MANAGER_DAEMON_ID}" "${0}" _manage_vm
+    local _run_console
+    local _pid
+
+    _run_console="$1"
+    _pid="$(get_vm_manager_pid)"
+
+    if [ -n "${_pid}" ]; then
+	    log warn "Guest is already run by PID ${_pid}, left intact"
+	    return 1
+    fi
+
+    if [ "${_run_console}" == "console" ]; then
+        vm_manager console
+    else
+        ${DAEMON} -r -t "${VM_MANAGER_DAEMON_ID}" "${0}" _manage_vm
+    fi
 }
 
 dockerbox_stop() {
@@ -337,10 +352,10 @@ command="$1"
 shift
 
 case ${command} in
-    start) dockerbox_start "$@";;
-    stop) dockerbox_stop "$@";;
-    console) vm_manager console;;
-    status) dockerbox_status ;;
+    start) dockerbox_start;;
+    stop) dockerbox_stop;;
+    console) dockerbox_start console;;
+    status) dockerbox_status;;
     _manage_vm) vm_manager;;
     *) echo "${help_msg}";;
 esac
