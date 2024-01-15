@@ -8,6 +8,13 @@ This project aims to provide usage of docker on FreeBSD by installing and runnin
 
 Use the following commands to install dockerbox.
 
+Install required packages such as grub-bhyve and docker client.
+
+```sh
+pkg install grub2-bhyve
+pkg install docker
+```
+
 Install dockerbox disk image.
 
 ```sh
@@ -24,12 +31,6 @@ mkdir -p /usr/local/etc/dockerbox
 cp freebsd-dockerbox/etc/dockerbox.conf /usr/local/etc/dockerbox
 cp freebsd-dockerbox/sbin/dockerbox /usr/local/sbin
 cp freebsd-dockerbox/rc.d/dockerbox /usr/local/etc/rc.d
-```
-
-Install docker client.
-
-```sh
-pkg install docker
 ```
 
 Modify the external interface specified in `/usr/local/etc/dockerbox/dockerbox.conf` for connecting to the Internet
