@@ -13,7 +13,7 @@ Install dockerbox disk image.
 ```sh
 wget https://github.com/leafoliage/freebsd-dockerbox/releases/download/disk-0.1.0/dockerbox-img.tar.gz
 mkdir -p /usr/local/share/dockerbox
-tar -xf -C /usr/local/share/dockerbox dockerbox-img.tar.gz
+tar -xf dockerbox-img.tar.gz -C /usr/local/share/dockerbox
 ```
 
 Install dockerbox script and config.
