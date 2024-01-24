@@ -13,30 +13,25 @@ Install required packages such as grub-bhyve and docker client.
 ```sh
 pkg install grub2-bhyve
 pkg install docker
+pkg install git
 ```
 
 Install dockerbox disk image.
 
 ```sh
-wget https://github.com/leafoliage/freebsd-dockerbox/releases/download/disk-0.1.0/dockerbox-img.tar.gz
-mkdir -p /usr/local/share/dockerbox
-tar -xf dockerbox-img.tar.gz -C /usr/local/share/dockerbox
+sudo make image
 ```
 
 Install dockerbox script and config.
 
 ```sh
-git clone https://github.com/leafoliage/freebsd-dockerbox.git
-mkdir -p /usr/local/etc/dockerbox
-cp freebsd-dockerbox/etc/dockerbox.conf /usr/local/etc/dockerbox
-cp freebsd-dockerbox/sbin/dockerbox /usr/local/sbin
-cp freebsd-dockerbox/rc.d/dockerbox /usr/local/etc/rc.d
+sudo make install
 ```
 
-Modify the external interface specified in `/usr/local/etc/dockerbox/dockerbox.conf` for connecting to the Internet
+The `make install` command automatically detects the default gateway interface for connecting to the Internet. To modify it, edit `ext_if` specified in `/usr/local/etc/dockerbox/dockerbox.conf`
 
 ```
-ext_if="ue0"
+ext_if=ue0
 ```
 
 ## Usage
@@ -59,6 +54,12 @@ Stopping dockerbox
 
 ```sh
 sudo dockerbox stop
+```
+
+Enable dockerbox service
+
+```sh
+sudo sysrc dockerbox_enable=YES
 ```
 
 Running dockerbox as service
