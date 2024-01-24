@@ -17,6 +17,7 @@ CHMOD=/bin/chmod
 GZIP=/usr/bin/gzip
 GIT=$(LOCALBASE)/bin/git
 SHELLCHECK=$(LOCALBASE)/bin/shellcheck
+FETCH=/usr/bin/fetch
 
 .if !defined(VERSION)
 VERSION!=	$(GIT) describe --tags --always
@@ -47,6 +48,12 @@ SUB_LIST+=	SUSPEND_CMD=/usr/bin/true \
 		RESUME_CMD=/usr/bin/true
 .endif
 
+GATE!=/usr/bin/netstat -nr | /usr/bin/grep default | /usr/bin/awk '{ print $$4 }'
+.if $(GATE) == ""
+GATE=ue0
+.endif
+SUB_LIST+=	EXT_IF=$(GATE)
+
 _SUB_LIST_EXP= 	${SUB_LIST:S/$/!g/:S/^/ -e s!%%/:S/=/%%!/}
 _SCRIPT_SRC=	sbin/dockerbox
 
@@ -56,11 +63,16 @@ install:
 	$(CHMOD) 555 $(BINDIR)/dockerbox
 
 	$(MKDIR) -p $(ETCDIR)/dockerbox
-	$(CP) -R etc/* $(ETCDIR)/dockerbox/
+	$(SED) ${_SUB_LIST_EXP} etc/dockerbox.conf > $(ETCDIR)/dockerbox/dockerbox.conf
 
 	$(MKDIR) -p $(RCDIR)
 	$(SED) ${_SUB_LIST_EXP} rc.d/dockerbox > $(RCDIR)/dockerbox
 	$(CHMOD) 555 $(RCDIR)/dockerbox
+
+image:
+	$(FETCH) https://github.com/leafoliage/freebsd-dockerbox/releases/download/disk-0.1.0/dockerbox-img.tar.gz
+	$(MKDIR) -p $(SHAREDIR)/dockerbox
+	$(TAR) -xf dockerbox-img.tar.gz -C $(SHAREDIR)/dockerbox && $(RM) dockerbox-img.tar.gz
 
 .MAIN: clean
 
