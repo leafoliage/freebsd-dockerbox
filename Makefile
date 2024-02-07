@@ -18,6 +18,10 @@ GZIP=/usr/bin/gzip
 GIT=${LOCALBASE}/bin/git
 SHELLCHECK=${LOCALBASE}/bin/shellcheck
 FETCH=/usr/bin/fetch
+SHA256SUM=/sbin/sha256sum
+AWK=/usr/bin/awk
+TAR=/usr/bin/tar
+RM=/bin/rm
 
 .if !defined{VERSION}
 VERSION!=	${GIT} describe --tags --always
@@ -57,6 +61,8 @@ SUB_LIST+=	EXT_IF=${GATE}
 _SUB_LIST_EXP= 	${SUB_LIST:S/$/!g/:S/^/ -e s!%%/:S/=/%%!/}
 _SCRIPT_SRC=	sbin/dockerbox
 
+IMG_TAR_SUM=	f1b04cd0f4bb9366ce2e5d111ce22082428e3fb0f81ec796d9607038cd8c8c4e
+
 install:
 	${MKDIR} -p ${BINDIR}
 	${SED} ${_SUB_LIST_EXP} ${_SCRIPT_SRC} > ${BINDIR}/dockerbox
@@ -69,11 +75,20 @@ install:
 	${SED} ${_SUB_LIST_EXP} rc.d/dockerbox > ${RCDIR}/dockerbox
 	${CHMOD} 555 ${RCDIR}/dockerbox
 
-image:
+dockerbox-img.tar.gz:
 	${FETCH} https://github.com/leafoliage/freebsd-dockerbox/releases/download/disk-0.1.0/dockerbox-img.tar.gz
+
+verify: dockerbox-img.tar.gz
+	DOWNLOAD_TAR_SUM="$$(${SHA256SUM} dockerbox-img.tar.gz | ${AWK} '{print $$1}')" && \
+	if [ "$${DOWNLOAD_TAR_SUM}" != '${IMG_TAR_SUM}' ]; then echo Error$: checksum not match; exit 1; fi
+
+image: dockerbox-img.tar.gz verify
 	${MKDIR} -p ${SHAREDIR}/dockerbox
-	${TAR} -xf dockerbox-img.tar.gz -C ${SHAREDIR}/dockerbox && ${RM} dockerbox-img.tar.gz
+	${TAR} -xf dockerbox-img.tar.gz -C ${SHAREDIR}/dockerbox 
 
 .MAIN: clean
 
-clean: ;
+.PHONY: clean
+
+clean: 
+	${RM} dockerbox-img.tar.gz
