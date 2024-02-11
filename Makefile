@@ -63,7 +63,7 @@ _SCRIPT_SRC=	sbin/dockerbox
 
 IMG_TAR_SUM=	f1b04cd0f4bb9366ce2e5d111ce22082428e3fb0f81ec796d9607038cd8c8c4e
 
-install:
+install: image
 	${MKDIR} -p ${BINDIR}
 	${SED} ${_SUB_LIST_EXP} ${_SCRIPT_SRC} > ${BINDIR}/dockerbox
 	${CHMOD} 555 ${BINDIR}/dockerbox
