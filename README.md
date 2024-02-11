@@ -16,13 +16,7 @@ pkg install docker
 pkg install git
 ```
 
-Install dockerbox disk image.
-
-```sh
-sudo make image
-```
-
-Install dockerbox script and config.
+Install dockerbox script, config and image.
 
 ```sh
 sudo make install
