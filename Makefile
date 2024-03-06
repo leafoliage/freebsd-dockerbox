@@ -61,7 +61,7 @@ SUB_LIST+=	EXT_IF=${GATE}
 _SUB_LIST_EXP= 	${SUB_LIST:S/$/!g/:S/^/ -e s!%%/:S/=/%%!/}
 _SCRIPT_SRC=	sbin/dockerbox
 
-install: image
+install:
 	${MKDIR} -p ${BINDIR}
 	${SED} ${_SUB_LIST_EXP} ${_SCRIPT_SRC} > ${BINDIR}/dockerbox
 	${CHMOD} 555 ${BINDIR}/dockerbox
@@ -73,13 +73,11 @@ install: image
 	${SED} ${_SUB_LIST_EXP} rc.d/dockerbox > ${RCDIR}/dockerbox
 	${CHMOD} 555 ${RCDIR}/dockerbox
 
-image: dockerbox-img.tar.gz
 	${MKDIR} -p ${SHAREDIR}/dockerbox
-	${TAR} -xf dockerbox-img.tar.gz -C ${SHAREDIR}/dockerbox 
+	${CP} -R share/ ${SHAREDIR}/dockerbox/
 
 .MAIN: clean
 
 .PHONY: clean
 
-clean: 
-	${RM} dockerbox-img.tar.gz
+clean: ; 
