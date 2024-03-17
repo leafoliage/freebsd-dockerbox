@@ -21,6 +21,9 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${KILL:=/bin/kill}"
 : "${PGREP:=/bin/pgrep}"
 : "${TOUCH:=/usr/bin/touch}"
+: "${SHA256:=/sbin/sha256sum}"
+: "${MKDIR:=/bin/mkdir}"
+: "${TAR:=/usr/bin/tar}"
 
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
 : "${PF_KO:=/boot/kernel/pf.ko}"
@@ -350,7 +353,7 @@ dockerbox_fetch() {
 	DISKVERSION=0.1.1
 	log debug "Fetch dockerbox disk imgage"
 	fetch https://github.com/leafoliage/freebsd-dockerbox/releases/download/disk-${DISKVERSION}/dockerbox-img-${DISKVERSION}.tar.zstd
-	if [ $(${SHA256} dockerbox-img-${DISKVERSION}) != ${DISK_IMG_SUM} ]; then
+	if [ $(${SHA256} dockerbox-img-${DISKVERSION}).tar.zstd != ${DISK_IMG_SUM} ]; then
 		${RM} dockerbox-img-${DISKVERSION}.tar.zstd
 		log error "Dockerbox image checksum unmatch"
 		exit 1
