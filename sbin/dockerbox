@@ -352,9 +352,9 @@ dockerbox_fetch() {
 	DISK_IMG_SUM=78512a9e7c61371124db962ee0eceb83a5994a784290c33c25e798a9ea98e480
 	DISKVERSION=0.1.1
 	log debug "Fetch dockerbox disk imgage"
-	fetch https://github.com/leafoliage/freebsd-dockerbox/releases/download/disk-${DISKVERSION}/dockerbox-img-${DISKVERSION}.tar.zstd
-	if [ $(${SHA256} dockerbox-img-${DISKVERSION}).tar.zstd != ${DISK_IMG_SUM} ]; then
-		${RM} dockerbox-img-${DISKVERSION}.tar.zstd
+	fetch -o /tmp https://github.com/leafoliage/freebsd-dockerbox/releases/download/disk-${DISKVERSION}/dockerbox-img-${DISKVERSION}.tar.zstd
+	if [ $(${SHA256} /tmp/dockerbox-img-${DISKVERSION}).tar.zstd != ${DISK_IMG_SUM} ]; then
+		${RM} /tmp/dockerbox-img-${DISKVERSION}.tar.zstd
 		log error "Dockerbox image checksum unmatch"
 		exit 1
 	fi
