@@ -22,7 +22,7 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${PGREP:=/bin/pgrep}"
 : "${TOUCH:=/usr/bin/touch}"
 : "${SHA256:=/sbin/sha256sum}"
-: "${MKDIR:=/bin/mkdir}"
+: "${MV:=/bin/mv}"
 : "${TAR:=/usr/bin/tar}"
 
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
@@ -353,13 +353,13 @@ dockerbox_fetch() {
 	DISKVERSION=0.1.1
 	log debug "Fetch dockerbox disk imgage"
 	fetch -o /tmp https://github.com/leafoliage/freebsd-dockerbox/releases/download/disk-${DISKVERSION}/dockerbox-img-${DISKVERSION}.tar.zstd
-	if [ $(${SHA256} /tmp/dockerbox-img-${DISKVERSION}).tar.zstd != ${DISK_IMG_SUM} ]; then
+	if [ "$(${SHA256} --quiet /tmp/dockerbox-img-${DISKVERSION}.tar.zstd)" != "${DISK_IMG_SUM}" ]; then
 		${RM} /tmp/dockerbox-img-${DISKVERSION}.tar.zstd
 		log error "Dockerbox image checksum unmatch"
 		exit 1
 	fi
-	${MKDIR} /usr/local/share/dockerbox
-	${TAR} -C /usr/local/share/dockerbox -xf dockerbox-img-${DISKVERSION}.tar.zstd
+	${TAR} -C /usr/local/share -xf /tmp/dockerbox-img-${DISKVERSION}.tar.zstd
+	${MV} /usr/local/share/dockerbox-img-${DISKVERSION} /usr/local/share/dockerbox
 	log info "Dockerbox disk image installed to /usr/local/share/dockerbox"
 }
 
