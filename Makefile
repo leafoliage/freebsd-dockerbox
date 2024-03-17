@@ -44,8 +44,8 @@ install:
 	${MKDIR} -p ${RCDIR}
 	${INSTALL} -m 0755 rc.d/dockerbox ${RCDIR}/dockerbox
 
-	${MKDIR} -p ${SHAREDIR}/dockerbox
-	${INSTALL} -m 0644 share/disk.img share/device.map ${SHAREDIR}/dockerbox
+	#${MKDIR} -p ${SHAREDIR}/dockerbox
+	#${INSTALL} -m 0644 share/disk.img share/device.map ${SHAREDIR}/dockerbox
 
 .MAIN: clean
 

@@ -12,7 +12,7 @@
 name=dockerbox
 desc="Manage dockerbox on boot, shutdown, suspend, and resume"
 rcvar=dockerbox_enable
-extra_commands="suspend resume"
+extra_commands="suspend resume fetch"
 
 load_rc_config ${name}
 
@@ -22,5 +22,6 @@ stop_cmd="${command} stop"
 status_cmd="${command} status"
 suspend_cmd="/usr/bin/true"
 resume_cmd="${command} restart vmm"
+fetch_cmd="${command} fetch"
 
 run_rc_command "$1"

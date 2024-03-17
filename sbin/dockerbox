@@ -339,6 +339,21 @@ dockerbox_status() {
     log info "End: wifibox status"
 }
 
+dockerbox_fetch() {
+	DISK_IMG_SUM=78512a9e7c61371124db962ee0eceb83a5994a784290c33c25e798a9ea98e480
+	DISKVERSION=0.1.1
+	log debug "Fetch dockerbox disk imgage"
+	fetch https://github.com/leafoliage/freebsd-dockerbox/releases/download/disk-${DISKVERSION}/dockerbox-img-${DISKVERSION}.tar.zstd
+	if [ $(${SHA256} dockerbox-img-${DISKVERSION}) != ${DISK_IMG_SUM} ]; then
+		${RM} dockerbox-img-${DISKVERSION}.tar.zstd
+		log error "Dockerbox image checksum unmatch"
+		exit 1
+	fi
+	${MKDIR} /usr/local/share/dockerbox
+	${TAR} -C /usr/local/share/dockerbox -xf dockerbox-img-${DISKVERSION}.tar.zstd
+	log info "Dockerbox disk image installed to /usr/local/share/dockerbox"
+}
+
 #[ "$0" != "${SCRIPT}" ] && return 0
 
 log debug "Program started as $0, with arguments: $*"
@@ -351,6 +366,7 @@ case ${command} in
     stop) dockerbox_stop;;
     console) dockerbox_start console;;
     status) dockerbox_status;;
+    fetch) dockerbox_fetch;;
     _manage_vm) vm_manager;;
     *) echo "${help_msg}";;
 esac
