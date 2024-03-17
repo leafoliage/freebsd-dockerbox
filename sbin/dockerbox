@@ -271,6 +271,12 @@ vm_manager() {
     check_vmm
     check_nat 
 
+    if [ ! -f ${DISK_IMAGE} ] || [ ! -f ${DEVICE_MAP} ]; then
+	  	log error "Disk image not installed"
+		log info "Please run 'service dockerbox fetch'"
+		exit 1
+	fi
+
     _tap="$(get_tap_interface)"
     _grub_args="-m ${DEVICE_MAP} -r hd0,msdos2 -M ${memory}"
     _bhyve_args="-A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -c ${cpu} -m ${memory}"
