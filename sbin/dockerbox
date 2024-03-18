@@ -24,6 +24,7 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${SHA256:=/sbin/sha256sum}"
 : "${MV:=/bin/mv}"
 : "${TAR:=/usr/bin/tar}"
+: "${RM:=/bin/rm}"
 
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
 : "${PF_KO:=/boot/kernel/pf.ko}"
