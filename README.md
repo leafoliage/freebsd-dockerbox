@@ -6,20 +6,28 @@ This project aims to provide usage of docker on FreeBSD by installing and runnin
 
 ## Installation
 
-Use the following commands to install dockerbox.
-
-Install required packages such as grub-bhyve and docker client.
+To install from Github, clone this repository and run `make install`.
 
 ```sh
-pkg install grub2-bhyve
-pkg install docker
-pkg install git
+# Install dockerbox script, config
+make install
 ```
 
-Install dockerbox script, config and image.
+To install from port, go to `/sysutils/dockerbox` and run `make` and `make install`.
 
 ```sh
-sudo make install
+# Install dockerbox script, config
+make
+make install
+```
+
+Enable the dockerbox service and download the dockerbox disk image.
+
+```sh
+service dockerbox enable
+
+# fetch disk image
+service dockerbox fetch
 ```
 
 The `make install` command automatically detects the default gateway interface for connecting to the Internet. To modify it, edit `ext_if` specified in `/usr/local/etc/dockerbox/dockerbox.conf`
@@ -30,16 +38,30 @@ ext_if=ue0
 
 ## Usage
 
+Make sure you have `docker` installed and dockerbox's disk image downloaded.
+
+```sh
+pkg install docker
+
+service dockerbox fetch
+```
+
 Starting dockerbox
 
 ```sh
-sudo dockerbox start
+service dockerbox start
 ```
 
-Run docker with dockerbox
+Export `DOCKER_HOST`.
 
 ```sh
-docker -H 10.0.0.3 run hello-world
+export DOCKER_HOST=10.0.0.3:2375
+```
+
+Try out docker!
+
+```sh
+docker run hello-world
 ```
 
 > The ip address of dockerbox is currently fixed to 10.0.0.3
@@ -47,19 +69,7 @@ docker -H 10.0.0.3 run hello-world
 Stopping dockerbox
 
 ```sh
-sudo dockerbox stop
-```
-
-Enable dockerbox service
-
-```sh
-sudo sysrc dockerbox_enable=YES
-```
-
-Running dockerbox as service
-
-```sh
-sudo service dockerbox start
+service dockerbox stop
 ```
 
 Log is at `/var/log/dockerbox.log`
