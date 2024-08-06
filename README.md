@@ -46,6 +46,14 @@ pkg install docker
 service dockerbox fetch
 ```
 
+Also install `grub2-bhyve` else you'll end up seeing error messages like `pid 2859 (bhyve), jid 0, uid 0: exited on signal 6 (no core dump - other error)` when you start dockerbox.
+
+```sh
+
+pkg install grub2-bhyve
+
+```
+
 Starting dockerbox
 
 ```sh
