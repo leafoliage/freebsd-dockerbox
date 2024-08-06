@@ -12,26 +12,27 @@ MKDIR=/bin/mkdir
 SED=/usr/bin/sed
 AWK=/usr/bin/awk
 INSTALL=/usr/bin/install
-NETSTAT=/usr/bin/netstat
+ROUTE=/sbin/route
 GREP=/usr/bin/grep
 GIT=${LOCALBASE}/bin/git
 
-.if !defined{VERSION}
-VERSION!=	${GIT} describe --tags --always
+.if !defined(VERSION)
+VERSION!= ${GIT} describe --tags --always
 .endif
 
-SUB_LIST=	PREFIX=${PREFIX} \
-		LOCALBASE=${LOCALBASE} \
-		VERSION=${VERSION} \
-		GUEST_ROOT=${GUEST_ROOT}
+SUB_LIST= PREFIX=${PREFIX} \
+          LOCALBASE=${LOCALBASE} \
+          VERSION=${VERSION} \
+          GUEST_ROOT=${GUEST_ROOT}
 
-GATE!=		${NETSTAT} -nr | ${GREP} default | ${AWK} '{ print $$4 }'
-.if ${GATE} == ""
+# Use route to get the IPv4 default interface
+GATE!= ${ROUTE} -n get -inet default | ${GREP} 'interface:' | ${AWK} '{ print $$2 }'
+.if empty(GATE)
 GATE=ue0
 .endif
-SUB_LIST+=	EXT_IF=${GATE}
+SUB_LIST+= EXT_IF=${GATE}
 
-_SUB_LIST_EXP= 	${SUB_LIST:S/$/!g/:S/^/ -e s!%%/:S/=/%%!/}
+_SUB_LIST_EXP= ${SUB_LIST:S/$/!g/:S/^/ -e s!%%/:S/=/%%!/}
 
 install:
 	${MKDIR} -p ${BINDIR}
@@ -51,4 +52,4 @@ install:
 
 .PHONY: clean
 
-clean: ; 
+clean: ;
