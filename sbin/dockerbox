@@ -25,6 +25,13 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${MV:=/bin/mv}"
 : "${TAR:=/usr/bin/tar}"
 : "${RM:=/bin/rm}"
+: "${TRUNCATE:=/usr/bin/truncate}"
+: "${MDCONFIG:=/sbin/mdconfig}"
+: "${GPART:=/sbin/gpart}"
+: "${RESIZE2FS:=/usr/local/sbin/resize2fs}"
+: "${E2FSCK:=/usr/local/sbin/e2fsck}"
+: "${FILE:=/usr/bin/file}"
+: "${AWK:=/usr/bin/awk}"
 
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
 : "${PF_KO:=/boot/kernel/pf.ko}"
@@ -34,6 +41,7 @@ DOCKERBOX_IF=dockerbox0
 DOCKERBOX_VM=dockerbox
 DOCKERBOX_LOG=/var/log/dockerbox.log
 DISK_IMAGE="${GUEST_ROOT}/disk.img"
+DOCKER_IMAGE="${GUEST_ROOT}/docker.img"
 DEVICE_MAP="${GUEST_ROOT}/device.map"
 VM_MANAGER_DAEMON_ID="dockerbox-vm-manager"
 CONFIG="${CONF_DIR}/dockerbox.conf"
@@ -41,10 +49,11 @@ CONFIG="${CONF_DIR}/dockerbox.conf"
 help_msg="Usage: sudo dockerbox [command]
 
 command:
-start	start dockerbox
-stop	stop dockerbox
-console	start dockerbox and connect to console
-status	show dockerbox status
+start		start dockerbox
+stop		stop dockerbox
+console		start dockerbox and connect to console
+status		show dockerbox status
+resize [size] 	extend docker image with size of [size]
 "
 
 log() {
@@ -257,6 +266,38 @@ get_vm_manager_pid() {
     ${PGREP} -fx "daemon: ${VM_MANAGER_DAEMON_ID}\[[0-9]*\]"
 }
 
+dockerbox_resize() {
+	local partition
+	local part_index=1
+
+	if [ ! -f ${DOCKER_IMAGE} ]; then
+		log error "Docker image not found"
+		exit 1
+	fi
+
+	size=$(echo "$1" | egrep "[1-9][0-9]*[0-9]*[GgMm]")
+	if [ "$?" -ne 0 ]; then
+		log error "Invalid size argument"
+		exit 1
+	fi
+
+	log info "Docker image extending ${size}..."
+
+	${TRUNCATE} -s "+${size}" ${DOCKER_IMAGE}
+
+	mdev_name=$(${MDCONFIG} ${DOCKER_IMAGE})
+	partition="/dev/${mdev_name}s${part_index}"
+
+	if [ "$(${FILE} -s ${partition} | ${AWK} '{ print $5 }')" != "ext4" ]; then
+		log error "File system type mismatch"
+		exit 1
+	fi
+
+	${GPART} resize -a 4k -i ${part_index} /dev/${mdev_name}
+	${E2FSCK} -f ${partition}
+	${RESIZE2FS} ${partition}
+}
+
 vm_manager() {
     local _tap
     local _grub_args
@@ -366,7 +407,7 @@ dockerbox_fetch() {
 
 #[ "$0" != "${SCRIPT}" ] && return 0
 
-log debug "Program started as $0, with arguments: $*"
+#log debug "Program started as $0, with arguments: $*"
 
 command="$1"
 shift
@@ -377,6 +418,7 @@ case ${command} in
     console) dockerbox_start console;;
     status) dockerbox_status;;
     fetch) dockerbox_fetch;;
+    resize) dockerbox_resize $@;;
     _manage_vm) vm_manager;;
     *) echo "${help_msg}";;
 esac
