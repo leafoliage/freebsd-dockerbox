@@ -46,11 +46,12 @@ pkg install docker
 service dockerbox fetch
 ```
 
-Also install `grub2-bhyve` else you'll end up seeing error messages like `pid 2859 (bhyve), jid 0, uid 0: exited on signal 6 (no core dump - other error)` when you start dockerbox.
+Also install tools like `grub2-bhyve` etc else you'll end up seeing error messages like `pid 2859 (bhyve), jid 0, uid 0: exited on signal 6 (no core dump - other error)` when you start dockerbox.
 
 ```sh
 
 pkg install grub2-bhyve
+pkg install e2fsprogs
 
 ```
 
@@ -63,7 +64,7 @@ service dockerbox start
 Export `DOCKER_HOST`.
 
 ```sh
-export DOCKER_HOST=10.0.0.3:2375
+export DOCKER_HOST=10.0.0.1:2375
 ```
 
 Try out docker!

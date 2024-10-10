@@ -45,6 +45,7 @@ DOCKER_IMAGE="${GUEST_ROOT}/docker.img"
 DEVICE_MAP="${GUEST_ROOT}/device.map"
 VM_MANAGER_DAEMON_ID="dockerbox-vm-manager"
 CONFIG="${CONF_DIR}/dockerbox.conf"
+NAT_IP="10.0.0.254"
 
 help_msg="Usage: sudo dockerbox [command]
 
@@ -158,7 +159,7 @@ check_pf() {
     fi
     check_configuration ${CONFIG}
 
-    nat_ip="10.0.0.1"
+    nat_ip=${NAT_IP}
     nat_mask=24
 
     log info "Pulling options from configuration file"
@@ -192,7 +193,7 @@ create_bridge() {
 
     check_configuration ${CONFIG}
     
-    nat_ip="10.0.0.1"
+    nat_ip=${NAT_IP}
     nat_mask=24
 
     log info "Pulling options from configuration file"
@@ -266,38 +267,6 @@ get_vm_manager_pid() {
     ${PGREP} -fx "daemon: ${VM_MANAGER_DAEMON_ID}\[[0-9]*\]"
 }
 
-dockerbox_resize() {
-	local partition
-	local part_index=1
-
-	if [ ! -f ${DOCKER_IMAGE} ]; then
-		log error "Docker image not found"
-		exit 1
-	fi
-
-	size=$(echo "$1" | egrep "[1-9][0-9]*[0-9]*[GgMm]")
-	if [ "$?" -ne 0 ]; then
-		log error "Invalid size argument"
-		exit 1
-	fi
-
-	log info "Docker image extending ${size}..."
-
-	${TRUNCATE} -s "+${size}" ${DOCKER_IMAGE}
-
-	mdev_name=$(${MDCONFIG} ${DOCKER_IMAGE})
-	partition="/dev/${mdev_name}s${part_index}"
-
-	if [ "$(${FILE} -s ${partition} | ${AWK} '{ print $5 }')" != "ext4" ]; then
-		log error "File system type mismatch"
-		exit 1
-	fi
-
-	${GPART} resize -a 4k -i ${part_index} /dev/${mdev_name}
-	${E2FSCK} -f ${partition}
-	${RESIZE2FS} ${partition}
-}
-
 vm_manager() {
     local _tap
     local _grub_args
@@ -323,8 +292,8 @@ vm_manager() {
 	fi
 
     _tap="$(get_tap_interface)"
-    _grub_args="-m ${DEVICE_MAP} -r hd0,msdos2 -M ${memory}"
-    _bhyve_args="-A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -c ${cpu} -m ${memory}"
+    _grub_args="-m ${DEVICE_MAP} -r hd0,msdos1 -M ${memory}"
+    _bhyve_args="-A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -s 4:0,virtio-blk,${DOCKER_IMAGE} -c ${cpu} -m ${memory}"
     
     if [ "$1" == "console" ]; then
         _bhyve_args="${_bhyve_args} -l com1,stdio"
@@ -388,6 +357,38 @@ dockerbox_status() {
     fi
 
     log info "End: wifibox status"
+}
+
+dockerbox_resize() {
+	local partition
+	local part_index=1
+
+	if [ ! -f ${DOCKER_IMAGE} ]; then
+		log error "Docker image not found"
+		exit 1
+	fi
+
+	size=$(echo "$1" | egrep "[1-9][0-9]*[0-9]*[GgMm]")
+	if [ "$?" -ne 0 ]; then
+		log error "Invalid size argument"
+		exit 1
+	fi
+
+	log info "Docker image extending ${size}..."
+
+	${TRUNCATE} -s "+${size}" ${DOCKER_IMAGE}
+
+	mdev_name=$(${MDCONFIG} ${DOCKER_IMAGE})
+	partition="/dev/${mdev_name}s${part_index}"
+
+	if [ "$(${FILE} -s ${partition} | ${AWK} '{ print $5 }')" != "ext4" ]; then
+		log error "File system type mismatch"
+		exit 1
+	fi
+
+	${GPART} resize -a 4k -i ${part_index} /dev/${mdev_name}
+	${E2FSCK} -f ${partition}
+	${RESIZE2FS} ${partition}
 }
 
 dockerbox_fetch() {
