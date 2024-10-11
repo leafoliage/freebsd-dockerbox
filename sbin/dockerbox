@@ -356,7 +356,7 @@ dockerbox_status() {
 	    return 1
     fi
 
-    log info "End: wifibox status"
+    log info "End: dockerbox status"
 }
 
 dockerbox_resize() {
