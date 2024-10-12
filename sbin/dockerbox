@@ -22,7 +22,6 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${PGREP:=/bin/pgrep}"
 : "${TOUCH:=/usr/bin/touch}"
 : "${SHA256:=/sbin/sha256sum}"
-: "${MV:=/bin/mv}"
 : "${TAR:=/usr/bin/tar}"
 : "${RM:=/bin/rm}"
 : "${TRUNCATE:=/usr/bin/truncate}"
@@ -32,6 +31,8 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${E2FSCK:=/usr/local/sbin/e2fsck}"
 : "${FILE:=/usr/bin/file}"
 : "${AWK:=/usr/bin/awk}"
+: "${FETCH:=/usr/bin/fetch}"
+: "${INSTALL:=/usr/bin/install}"
 
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
 : "${PF_KO:=/boot/kernel/pf.ko}"
@@ -392,18 +393,32 @@ dockerbox_resize() {
 }
 
 dockerbox_fetch() {
-	DISK_IMG_SUM=78512a9e7c61371124db962ee0eceb83a5994a784290c33c25e798a9ea98e480
-	DISKVERSION=0.1.1
+	DISK_IMG_SUM=559ea9e0061a36e840254c788e3795b4cc726a878a053146a4f2db72fae45143
+	DISKVERSION=0.2.0
+	DISKRELEASE=dockerbox-img-${DISKVERSION}
+	TMPDIR=/tmp
+
+	if [ -d ${GUEST_ROOT} ]; then
+		read -p "${GUEST_ROOT} exists. Overwrite? [y/n]: " yn
+		if [ $yn != "y" ]; then
+			echo "Abort"
+			exit
+		fi
+	fi
+
 	log debug "Fetch dockerbox disk imgage"
-	fetch -o /tmp https://github.com/leafoliage/freebsd-dockerbox/releases/download/disk-${DISKVERSION}/dockerbox-img-${DISKVERSION}.tar.zstd
-	if [ "$(${SHA256} --quiet /tmp/dockerbox-img-${DISKVERSION}.tar.zstd)" != "${DISK_IMG_SUM}" ]; then
-		${RM} /tmp/dockerbox-img-${DISKVERSION}.tar.zstd
+	if [ $? -ne 0 ]; then exit 1; fi
+	${FETCH} -o ${TMPDIR} https://github.com/leafoliage/freebsd-dockerbox-debian/releases/download/v${DISKVERSION}/dockerbox-img-${DISKVERSION}.tar.zstd
+
+	tarball=${TMPDIR}/${DISKRELEASE}.tar.zstd
+	if [ "$(${SHA256} --quiet ${tarball})" != "${DISK_IMG_SUM}" ]; then
+		${RM} ${tarball}
 		log error "Dockerbox image checksum unmatch"
 		exit 1
 	fi
-	${TAR} -C /usr/local/share -xf /tmp/dockerbox-img-${DISKVERSION}.tar.zstd
-	${MV} /usr/local/share/dockerbox-img-${DISKVERSION} /usr/local/share/dockerbox
-	log info "Dockerbox disk image installed to /usr/local/share/dockerbox"
+	${TAR} -C ${TMPDIR} -xf ${tarball}
+	${INSTALL} -m 0644 ${TMPDIR}/${DISKRELEASE}/* ${GUEST_ROOT}
+	log info "Dockerbox disk image installed to ${GUEST_ROOT}"
 }
 
 #[ "$0" != "${SCRIPT}" ] && return 0

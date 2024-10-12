@@ -4,30 +4,34 @@ This project is still a work in progress.
 
 This project aims to provide usage of docker on FreeBSD by installing and running dockerd inside a linux bhyve vm called dockerbox.
 
+## Project Structure
+
+This repository (`freebsd-docker`) holds the core files to run a dockerbox service, including rc script and configs.
+
+[freebsd-dockerbox-debian](https://github.com/leafoliage/freebsd-dockerbox-debian) is the repository for dockerbox's underlying disk images.
+
+[freebsd-dockerbox-port](https://github.com/leafoliage/freebsd-dockerbox-port) holds dockerbox's port related files.
+
 ## Installation
 
-To install from Github, clone this repository and run `make install`.
+To install from source, clone this repository and run `make install`.
 
 ```sh
 # Install dockerbox script, config
 make install
 ```
 
-To install from port, go to `/sysutils/dockerbox` and run `make` and `make install`.
+Download the dockerbox disk images.
 
 ```sh
-# Install dockerbox script, config
-make
-make install
+make fetch-disk
 ```
 
-Enable the dockerbox service and download the dockerbox disk image.
+Enable and start the dockerbox service.
 
 ```sh
 service dockerbox enable
-
-# fetch disk image
-service dockerbox fetch
+service dockerbox start
 ```
 
 The `make install` command automatically detects the default gateway interface for connecting to the Internet. To modify it, edit `ext_if` specified in `/usr/local/etc/dockerbox/dockerbox.conf`
@@ -73,12 +77,20 @@ Try out docker!
 docker run hello-world
 ```
 
-> The ip address of dockerbox is currently fixed to 10.0.0.3
+> The ip address of dockerbox is currently fixed to 10.0.0.1
 
 Stopping dockerbox
 
 ```sh
 service dockerbox stop
 ```
+
+Resize docker data storage. 
+
+```sh
+dockerbox resize 1G
+```
+
+> Currently only extending storage is supported.
 
 Log is at `/var/log/dockerbox.log`
