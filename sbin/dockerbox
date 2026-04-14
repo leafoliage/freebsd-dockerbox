@@ -43,6 +43,7 @@ DOCKERBOX_VM=dockerbox
 DOCKERBOX_LOG=/var/log/dockerbox.log
 DISK_IMAGE="${GUEST_ROOT}/disk.img"
 DOCKER_IMAGE="${GUEST_ROOT}/docker.img"
+DOCKER_DISK_SIZE=20G
 DEVICE_MAP="${GUEST_ROOT}/device.map"
 VM_MANAGER_DAEMON_ID="dockerbox-vm-manager"
 CONFIG="${CONF_DIR}/dockerbox.conf"
@@ -268,6 +269,20 @@ get_vm_manager_pid() {
     ${PGREP} -fx "daemon: ${VM_MANAGER_DAEMON_ID}\[[0-9]*\]"
 }
 
+gen_docker_image() {
+    local _docker_mddev
+
+    truncate -s ${DOCKER_DISK_SIZE} ${DOCKER_IMAGE}
+    log debug "Truncated new docker image at ${DOCKER_IMAGE}"
+    _docker_mddev=$(mdconfig ${DOCKER_IMAGE})
+    gpart create -s mbr ${_docker_mddev}
+    gpart add -t linux-data ${_docker_mddev}
+    log debug "Added partition to ${DOCKER_IMAGE}"
+    mkfs.ext4 /dev/${_docker_mddev}s1
+    log debug "Made ext4 file system on ${DOCKER_IMAGE}'s partition"
+    mdconfig -du ${docker_mddev}
+}
+
 vm_manager() {
     local _tap
     local _grub_args
@@ -286,11 +301,22 @@ vm_manager() {
     check_vmm
     check_nat 
 
-    if [ ! -f ${DISK_IMAGE} ] || [ ! -f ${DEVICE_MAP} ]; then
+    if [ ! -f ${DISK_IMAGE} ]; then
 	  	log error "Disk image not installed"
 		log info "Please run 'service dockerbox fetch'"
 		exit 1
 	fi
+
+    if [ ! -f ${DEVICE_MAP} ]; then
+        log warn "Device map not found. Generating device map at ${DEVICE_MAP}."
+        echo "(hd0) ${DISK_IMAGE}" > ${DEVICE_MAP}
+    fi
+
+    if [ ! -f ${DOCKER_IMAGE} ]; then
+        log warn "Docker image not found. Generating docker image at ${DOCKER_IMAGE}."
+        gen_docker_image
+	log info "Empty docker image generated."
+    fi
 
     _tap="$(get_tap_interface)"
     _grub_args="-m ${DEVICE_MAP} -r hd0,msdos1 -M ${memory}"
@@ -335,7 +361,7 @@ dockerbox_stop() {
     local _pid
     _pid="$(get_vm_manager_pid)"
     log info "Stopping guest ${DOCKERBOX_VM}, managed by PID ${_pid}"
-    ${KILL} -SIGTERM "${_pid}" 2>&1 | capture_output debug kill
+    ${KILL} -SIGKILL "${_pid}" 2>&1 | capture_output debug kill
     bhyvectl --destroy --vm=${DOCKERBOX_VM}
     destroy_tap
     destroy_bridge
@@ -393,8 +419,8 @@ dockerbox_resize() {
 }
 
 dockerbox_fetch() {
-	DISK_IMG_SUM=559ea9e0061a36e840254c788e3795b4cc726a878a053146a4f2db72fae45143
-	DISKVERSION=0.2.0
+	DISK_IMG_SUM=1d9050e9967c66384cce079c0e6782c94d4a1344aaddf2abb583d5c9363ec189
+	DISKVERSION=0.3.0
 	DISKRELEASE=dockerbox-img-${DISKVERSION}
 	TMPDIR=/tmp
 
