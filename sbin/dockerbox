@@ -330,7 +330,7 @@ vm_manager() {
         ${BHYVE} ${_bhyve_args} ${DOCKERBOX_VM} 
     else
         log debug "Grub arguments: ${_grub_args}"
-        ${GRUB_BHYVE} ${_grub_args} ${DOCKERBOX_VM} 2>&1 | capture_output debug grub-bhyve  
+        env TERM=xterm-256color ${GRUB_BHYVE} ${_grub_args} ${DOCKERBOX_VM} 2>&1 | capture_output debug grub-bhyve
         log debug "Bhyve arguments: ${_bhyve_args}"
         ${BHYVE} ${_bhyve_args} ${DOCKERBOX_VM} 2>&1 | capture_output debug bhyve
     fi
@@ -443,6 +443,7 @@ dockerbox_fetch() {
 		exit 1
 	fi
 	${TAR} -C ${TMPDIR} -xf ${tarball}
+	${MKDIR} -p ${GUEST_ROOT}
 	${INSTALL} -m 0644 ${TMPDIR}/${DISKRELEASE}/* ${GUEST_ROOT}
 	log info "Dockerbox disk image installed to ${GUEST_ROOT}"
 }
