@@ -298,7 +298,7 @@ gen_docker_image() {
   log debug "Added partition to ${DOCKER_IMAGE}"
   ${MKFS} -q /dev/${_docker_mddev}s1
   log debug "Made ext4 file system on ${DOCKER_IMAGE}'s partition"
-  ${MDCONFIG} -du ${docker_mddev}
+  ${MDCONFIG} -du ${_docker_mddev}
 }
 
 check_device_map() {
@@ -323,7 +323,7 @@ check_docker_image_fs() {
     ${GPART} add -t linux-data ${_docker_mddev}
     log debug "Added partition to ${DOCKER_IMAGE}"
   fi
-  if [ -z "$(file -s ${_md_dev} | grep 'Linux rev 1.0 ext4')" ]; then
+  if [ -z "$(file -s /dev/${_md_dev}s1 | grep 'Linux rev 1.0 ext4')" ]; then
     log warn "No ext4 file system found in ${DOCKER_IMAGE}. Making one."
     ${MKFS} -q /dev/${_md_dev}s1
     log warn "Made ext4 file system in ${DOCKER_IMAGE}."
