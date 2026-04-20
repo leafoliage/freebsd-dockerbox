@@ -36,6 +36,7 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${LS:=/bin/ls}"
 : "${CU:=/usr/bin/cu}"
 : "${MKDIR:=/bin/mkdir}"
+: "${MKFS:=/usr/local/sbin/mkfs.ext4}"
 
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
 : "${NMDM_KO:=/boot/kernel/nmdm.ko}"
@@ -180,7 +181,7 @@ check_pf() {
   log info "Pulling options from configuration file"
   . ${CONFIG}
 
-  nat_keyword="$(echo ${nat_ip} | cut -d'.' -f1-3).0/${nat_mask}"
+  nat_keyword="$(${ECHO} ${nat_ip} | cut -d'.' -f1-3).0/${nat_mask}"
 
   if [ $(nat_count ${nat_keyword} ${ext_if}) -lt 1 ]; then
     log warn "No pf NAT set up"
@@ -289,15 +290,45 @@ get_vm_manager_pid() {
 gen_docker_image() {
   local _docker_mddev
 
-  truncate -s ${DOCKER_DISK_SIZE} ${DOCKER_IMAGE}
+  ${TRUNCATE} -s ${DOCKER_DISK_SIZE} ${DOCKER_IMAGE}
   log debug "Truncated new docker image at ${DOCKER_IMAGE}"
-  _docker_mddev=$(mdconfig ${DOCKER_IMAGE})
-  gpart create -s mbr ${_docker_mddev}
-  gpart add -t linux-data ${_docker_mddev}
+  _docker_mddev=$(${MDCONFIG} ${DOCKER_IMAGE})
+  ${GPART} create -s mbr ${_docker_mddev}
+  ${GPART} add -t linux-data ${_docker_mddev}
   log debug "Added partition to ${DOCKER_IMAGE}"
-  mkfs.ext4 /dev/${_docker_mddev}s1
+  ${MKFS} -q /dev/${_docker_mddev}s1
   log debug "Made ext4 file system on ${DOCKER_IMAGE}'s partition"
-  mdconfig -du ${docker_mddev}
+  ${MDCONFIG} -du ${docker_mddev}
+}
+
+check_device_map() {
+  if [ ! -f ${DEVICE_MAP} ]; then
+    log warn "Device map not found. Generating device map at ${DEVICE_MAP}."
+    ${ECHO} "(hd0) ${DISK_IMAGE}" > ${DEVICE_MAP}
+  fi
+}
+
+check_docker_image() {
+  if [ ! -f ${DOCKER_IMAGE} ]; then
+    log warn "Docker image not found. Generating docker image at ${DOCKER_IMAGE}."
+    gen_docker_image
+    log info "Empty docker image generated."
+  fi
+}
+
+check_docker_image_fs() {
+  _md_dev=$(${MDCONFIG} ${DOCKER_IMAGE})
+  if [ ! -e /dev/${_md_dev}s1 ]; then
+    log warn "No partition found in ${DOCKER_IMAGE}. Creating one."
+    ${GPART} add -t linux-data ${_docker_mddev}
+    log debug "Added partition to ${DOCKER_IMAGE}"
+  fi
+  if [ -z "$(file -s ${_md_dev} | grep 'Linux rev 1.0 ext4')" ]; then
+    log warn "No ext4 file system found in ${DOCKER_IMAGE}. Making one."
+    ${MKFS} -q /dev/${_md_dev}s1
+    log warn "Made ext4 file system in ${DOCKER_IMAGE}."
+  fi
+  ${MDCONFIG} -du ${_md_dev}
 }
 
 vm_manager() {
@@ -316,27 +347,17 @@ vm_manager() {
   log info "Pulling options from configuration file"
   . ${CONFIG}
 
-  check_vmm
-  check_nat 
-  check_nmdm
-
   if [ ! -f ${DISK_IMAGE} ]; then
-    log error "Disk image not installed. Please run '/usr/local/sbin/dockerbox fetch'."
-    destroy_tap
-    destroy_bridge
+    log error "Disk image not installed. Please run 'dockerbox fetch'."
     exit 1
   fi
 
-  if [ ! -f ${DEVICE_MAP} ]; then
-    log warn "Device map not found. Generating device map at ${DEVICE_MAP}."
-    echo "(hd0) ${DISK_IMAGE}" > ${DEVICE_MAP}
-  fi
-
-  if [ ! -f ${DOCKER_IMAGE} ]; then
-    log warn "Docker image not found. Generating docker image at ${DOCKER_IMAGE}."
-    gen_docker_image
-  log info "Empty docker image generated."
-  fi
+  check_vmm
+  check_nat
+  check_nmdm
+  check_device_map
+  check_docker_image
+  check_docker_image_fs
 
   _tap="$(get_tap_interface)"
   _grub_args="-m ${DEVICE_MAP} -r hd0,msdos1 -M ${memory}"
@@ -364,7 +385,7 @@ dockerbox_start() {
   fi
 
   if [ ! -f ${DISK_IMAGE} ]; then
-    log error "Disk image not installed. Please run '/usr/local/sbin/dockerbox fetch'."
+    log error "Disk image not installed. Please run 'dockerbox fetch'."
     exit 1
   fi
 
@@ -373,6 +394,10 @@ dockerbox_start() {
   ${KLDSTAT} -q -m vmm || log warn "vmm.ko not loaded. vmm.ko will be loaded"
   ${KLDSTAT} -q -m pf || log warn "pf.ko not loaded. pf.ko will be loaded"
   ${KLDSTAT} -q -m nmdm || log warn "nmdm.ko not loaded. nmdm.ko will be loaded. Change this behavior in ${CONFIG}"
+
+  check_device_map
+  check_docker_image
+  check_docker_image_fs
 
   log info "Start dockerbox daemon"
   ${DAEMON} -r -t "${VM_MANAGER_DAEMON_ID}" "${0}" _manage_vm
@@ -440,7 +465,7 @@ dockerbox_resize() {
     exit 1
   fi
 
-  size=$(echo "$1" | egrep "[1-9][0-9]*[0-9]*[GgMm]")
+  size=$(${ECHO} "$1" | egrep "[1-9][0-9]*[0-9]*[GgMm]")
   if [ "$?" -ne 0 ]; then
     log error "Invalid size argument"
     exit 1
@@ -472,7 +497,7 @@ dockerbox_fetch() {
   if [ -f ${DISK_IMAGE} ]; then
     read -p "${DISK_IMAGE} exists. Overwrite? [y/n]: " yn
     if [ $yn != "y" ]; then
-      echo "Abort"
+      ${ECHO} "Abort"
       exit
     fi
   fi
@@ -505,5 +530,5 @@ case ${command} in
   fetch) dockerbox_fetch;;
   resize) dockerbox_resize $@;;
   _manage_vm) vm_manager;;
-  *) echo "${help_msg}";;
+  *) ${ECHO} "${help_msg}";;
 esac
