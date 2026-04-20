@@ -35,6 +35,7 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${INSTALL:=/usr/bin/install}"
 : "${LS:=/bin/ls}"
 : "${CU:=/usr/bin/cu}"
+: "${MKDIR:=/bin/mkdir}"
 
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
 : "${NMDM_KO:=/boot/kernel/nmdm.ko}"
@@ -320,10 +321,11 @@ vm_manager() {
     check_nmdm
 
     if [ ! -f ${DISK_IMAGE} ]; then
-	  	log error "Disk image not installed"
-		log info "Please run 'service dockerbox fetch'"
-		exit 1
-	fi
+        log error "Disk image not installed. Please run '/usr/local/sbin/dockerbox fetch'."
+        destroy_tap
+        destroy_bridge
+        exit 1
+    fi
 
     if [ ! -f ${DEVICE_MAP} ]; then
         log warn "Device map not found. Generating device map at ${DEVICE_MAP}."
@@ -351,7 +353,6 @@ vm_manager() {
 }
 
 dockerbox_start() {
-    local _run_console
     local _pid
 
     _run_console="$1"
@@ -362,13 +363,19 @@ dockerbox_start() {
 	    return 1
     fi
 
-    if [ "${_run_console}" == "console" ]; then
-        log info "dockerbox_start: console mode"
-        vm_manager console
-    else
-        log info "dockerbox_start: normal mode"
-        ${DAEMON} -r -t "${VM_MANAGER_DAEMON_ID}" "${0}" _manage_vm
+    if [ ! -f ${DISK_IMAGE} ]; then
+        log error "Disk image not installed. Please run '/usr/local/sbin/dockerbox fetch'."
+        exit 1
     fi
+
+    check_configuration ${CONFIG}
+
+    ${KLDSTAT} -q -m vmm || log warn "vmm.ko not loaded. vmm.ko will be loaded"
+    ${KLDSTAT} -q -m pf || log warn "pf.ko not loaded. pf.ko will be loaded"
+    ${KLDSTAT} -q -m nmdm || log warn "nmdm.ko not loaded. nmdm.ko will be loaded. Change this behavior in ${CONFIG}"
+
+    log info "Start dockerbox daemon"
+    ${DAEMON} -r -t "${VM_MANAGER_DAEMON_ID}" "${0}" _manage_vm
 }
 
 dockerbox_console() {
@@ -404,7 +411,6 @@ dockerbox_stop() {
     bhyvectl --destroy --vm=${DOCKERBOX_VM}
     destroy_tap
     destroy_bridge
-    #${KILL} -SIGTERM $PPID
     log info "Dockerbox stopped: killed pid=${_pid}"
 }
 
@@ -463,8 +469,8 @@ dockerbox_fetch() {
 	DISKRELEASE=dockerbox-img-${DISKVERSION}
 	TMPDIR=/tmp
 
-	if [ -d ${GUEST_ROOT} ]; then
-		read -p "${GUEST_ROOT} exists. Overwrite? [y/n]: " yn
+	if [ -f ${DISK_IMAGE} ]; then
+		read -p "${DISK_IMAGE} exists. Overwrite? [y/n]: " yn
 		if [ $yn != "y" ]; then
 			echo "Abort"
 			exit
@@ -484,12 +490,9 @@ dockerbox_fetch() {
 	${TAR} -C ${TMPDIR} -xf ${tarball}
 	${MKDIR} -p ${GUEST_ROOT}
 	${INSTALL} -m 0644 ${TMPDIR}/${DISKRELEASE}/* ${GUEST_ROOT}
-	log info "Dockerbox disk image installed to ${GUEST_ROOT}"
+	log info "Dockerbox disk image installed to ${DISK_IMAGE}"
 }
 
-#[ "$0" != "${SCRIPT}" ] && return 0
-
-#log debug "Program started as $0, with arguments: $*"
 
 command="$1"
 shift
