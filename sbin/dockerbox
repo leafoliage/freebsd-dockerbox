@@ -57,14 +57,14 @@ NMDM_DEVICE=/dev/nmdm-dockerbox
 NMDM_A="${NMDM_DEVICE}.1A"
 NMDM_B="${NMDM_DEVICE}.1B"
 
-help_msg="Usage: sudo dockerbox [command]
+help_msg="Usage: dockerbox command
 
 command:
-start		start dockerbox
-stop		stop dockerbox
-console		start dockerbox and connect to console
-status		show dockerbox status
-resize [size] 	extend docker image with size of [size]
+  start         start dockerbox
+  stop          stop dockerbox
+  console       connect to dockerbox console
+  status        show dockerbox status
+  resize size   extend docker image with size of <size>
 "
 
 log() {
