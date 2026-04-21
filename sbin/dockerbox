@@ -389,14 +389,16 @@ dockerbox_start() {
     exit 1
   fi
 
-  console=yes
+  console="yes"
 
   check_configuration ${CONFIG}
   . ${CONFIG}
 
   ${KLDSTAT} -q -m vmm || log warn "vmm.ko not loaded. vmm.ko will be loaded"
   ${KLDSTAT} -q -m pf || log warn "pf.ko not loaded. pf.ko will be loaded"
-  [ ${console} = "yes" ] && ${KLDSTAT} -q -m nmdm || log warn "nmdm.ko not loaded. nmdm.ko will be loaded. Change this behavior in ${CONFIG}"
+  if [ "${console}" == "yes" ]; then
+    ${KLDSTAT} -q -m nmdm || log warn "nmdm.ko not loaded. nmdm.ko will be loaded. Change this behavior in ${CONFIG}"
+  fi
 
   check_device_map
   check_docker_image
