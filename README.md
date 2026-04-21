@@ -12,74 +12,65 @@ This repository (`freebsd-docker`) holds the core files to run a dockerbox servi
 
 [freebsd-dockerbox-port](https://github.com/leafoliage/freebsd-dockerbox-port) holds dockerbox's port related files.
 
-## Installation
+## Quickstart
+
+### Install from source
 
 To install from source, clone this repository and run `make install`.
 
 ```sh
-# Install dockerbox script, config
+git clone https://github.com/leafoliage/freebsd-dockerbox.git
+```
+
+```sh
 make install
 ```
 
-Download the dockerbox disk images.
+Download the dockerbox disk image.
 
 ```sh
 make fetch-disk
 ```
 
+Install helper packages.
+
+```sh
+pkg install grub2-bhyve e2fsprogs docker
+```
+
+> There is a recent patch for `grub2-bhve` essential to dockerbox. Please make sure the "latest" package repository is used instead of quarterly. Check with `pkg -vv`. Otherwise, `grub2-bhyve` should be built from port.
+
 Enable and start the dockerbox service.
 
 ```sh
+sysrc dockerbox_enable=YES
 service dockerbox enable
 service dockerbox start
 ```
 
-The `make install` command automatically detects the default gateway interface for connecting to the Internet. To modify it, edit `ext_if` specified in `/usr/local/etc/dockerbox/dockerbox.conf`
+Run docker command with remote docker specified.
 
+```sh
+docker -H 10.0.0.1:2375 run hello-world
 ```
-ext_if=ue0
-```
+
 
 ## Usage
 
-Make sure you have `docker` installed and dockerbox's disk image downloaded.
-
-```sh
-pkg install docker
-
-service dockerbox fetch
-```
-
-Also install tools like `grub2-bhyve` etc else you'll end up seeing error messages like `pid 2859 (bhyve), jid 0, uid 0: exited on signal 6 (no core dump - other error)` when you start dockerbox.
-
-```sh
-
-pkg install grub2-bhyve
-pkg install e2fsprogs
-
-```
-
-Starting dockerbox
+Starting dockerbox.
 
 ```sh
 service dockerbox start
 ```
 
-Export `DOCKER_HOST`.
+Export `DOCKER_HOST` and run docker commands.
 
 ```sh
 export DOCKER_HOST=10.0.0.1:2375
-```
-
-Try out docker!
-
-```sh
 docker run hello-world
 ```
 
-> The ip address of dockerbox is currently fixed to 10.0.0.1
-
-Stopping dockerbox
+Stopping dockerbox.
 
 ```sh
 service dockerbox stop
@@ -94,3 +85,23 @@ dockerbox resize 1G
 > Currently only extending storage is supported.
 
 Log is at `/var/log/dockerbox.log`
+
+## Configs
+
+```
+# /usr/local/etc/dockerbox/dockerbox.conf
+cpu: cpu cores for dockerbox
+memory: RAM for dockerbox
+ext_if: the external network interface
+nat_ip: the IP address for NAT gateway
+nat_mask: netmask for NAT
+console: start dockerbox with a nmdm device or not
+```
+
+> The `make install` command automatically detects the default gateway interface for connecting to the Internet.
+
+> The ip address of dockerbox is currently fixed to 10.0.0.1
+
+## Dockerbox Structure
+
+Dockerbox runs on a root disk and a docker data disk. The docker data disk is mounted at `/var/lib/docker`, and the rest of they system is installed on the root disk. The separate disk design is to simplify disk space management and resizing.

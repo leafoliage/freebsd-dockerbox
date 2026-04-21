@@ -321,7 +321,7 @@ check_docker_image_fs() {
   if [ ! -e /dev/${_md_dev}s1 ]; then
     log warn "No partition found in ${DOCKER_IMAGE}. Creating one."
     ${GPART} add -t linux-data ${_docker_mddev}
-    log debug "Added partition to ${DOCKER_IMAGE}"
+    log warn "Added partition to ${DOCKER_IMAGE}"
   fi
   if [ -z "$(file -s /dev/${_md_dev}s1 | grep 'Linux rev 1.0 ext4')" ]; then
     log warn "No ext4 file system found in ${DOCKER_IMAGE}. Making one."
@@ -354,7 +354,6 @@ vm_manager() {
 
   check_vmm
   check_nat
-  check_nmdm
   check_device_map
   check_docker_image
   check_docker_image_fs
@@ -364,6 +363,7 @@ vm_manager() {
   _bhyve_args="-A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -s 4:0,virtio-blk,${DOCKER_IMAGE} -c ${cpu} -m ${memory}"
 
   if [ "${console}" == "yes" ]; then
+    check_nmdm
     _bhyve_args="${_bhyve_args} -l com1,${NMDM_A}"
   fi
 
@@ -389,11 +389,14 @@ dockerbox_start() {
     exit 1
   fi
 
+  console=yes
+
   check_configuration ${CONFIG}
+  . ${CONFIG}
 
   ${KLDSTAT} -q -m vmm || log warn "vmm.ko not loaded. vmm.ko will be loaded"
   ${KLDSTAT} -q -m pf || log warn "pf.ko not loaded. pf.ko will be loaded"
-  ${KLDSTAT} -q -m nmdm || log warn "nmdm.ko not loaded. nmdm.ko will be loaded. Change this behavior in ${CONFIG}"
+  [ ${console} = "yes" ] && ${KLDSTAT} -q -m nmdm || log warn "nmdm.ko not loaded. nmdm.ko will be loaded. Change this behavior in ${CONFIG}"
 
   check_device_map
   check_docker_image
