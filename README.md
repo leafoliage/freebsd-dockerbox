@@ -89,6 +89,51 @@ dockerbox resize 1G
 
 Log is at `/var/log/dockerbox.log`
 
+### Publishing and exposing ports
+
+Dockerbox currently doesn't support port forwarding from host to dockerbox, all docker exposed ports should be accessed at dockerbox's IP address.
+
+```sh
+docker -H 10.0.0.1:2375 run -p 8080:80 --name nginx -d nginx
+fetch http://10.0.0.1:8080
+```
+
+### Bind mounts
+
+Dockerbox doesn't support bind mounting from host into dockerbox's docker container.
+
+To make host files/directories accessible to containers, use `docker cp`.
+
+```sh
+docker -H 10.0.0.1:2375 cp -r /path/to/file nginx:/usr/share/nginx/html/
+```
+
+Note that `docker cp` is incompatible with FreeBSD directories, so manually tarring the directory is requried.
+
+```sh
+tar -c -f - /path/to/dir | docker -H 10.0.0.1:2375 cp - nginx:/usr/share/nginx/html/
+```
+
+Here is a helper script for copying directory.
+
+```sh
+#!/bin/sh
+[ -z "$2" ] && echo "Usage: $0 SRC_PATH CONTAINER_DST_PATH" && exit 1
+tar -c -f - "$1" | docker -H 10.0.0.1:2375 cp - "$2"
+```
+
+```sh
+./dockerbox-cp /path/to/dir nginx:/usr/share/nginx/html/
+```
+
+### Docker volumes
+
+Docker volumes are managed by docker in dockerbox, so they can be normally used.
+
+### Docker compose
+
+Docker compose functionalities are still under testing.
+
 ## Configs
 
 ```
