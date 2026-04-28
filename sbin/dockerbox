@@ -160,8 +160,31 @@ nat_count() {
   ${PFCTL} -s nat | grep nat | grep ${_nat_keyword} | grep ${_ext_if} -c
 }
 
+detect_ext_if() {
+  ${ROUTE} -n get -inet default | ${GREP} 'interface:' | ${AWK} '{ print $2 }'
+}
+
 check_pf() {
   assert_kmod_loaded "pf" "${PF_KO}"
+
+  nat_ip=${NAT_IP}
+  nat_mask=24
+
+  log info "Pulling options from configuration file"
+  check_configuration ${CONFIG}
+  . ${CONFIG}
+
+  if [ "${ext_if}" == "auto" ]; then
+    log info "ext_if=auto configured. Detecting external interface"
+    ext_if=$(detect_ext_if)
+    if [ -z "${ext_if}" ]; then
+      log warn "No external interface available"
+    else
+      log info "External interface is ${ext_if}"
+    fi
+  elif [ $(check_ext_if) -lt 1 ]; then
+    log warn "External interface specified in settings not available"
+  fi
 
   if [ ! $(${PFCTL} -s Running) == "Enabled" ]; then
     log info "Enabling PF"
@@ -173,28 +196,17 @@ check_pf() {
     log info "Creating empty pf configuration ${PF_CONF}"
     ${TOUCH} ${PF_CONF}
   fi
-  check_configuration ${CONFIG}
-
-  nat_ip=${NAT_IP}
-  nat_mask=24
-
-  log info "Pulling options from configuration file"
-  . ${CONFIG}
 
   nat_keyword="$(${ECHO} ${nat_ip} | cut -d'.' -f1-3).0/${nat_mask}"
 
   if [ $(nat_count ${nat_keyword} ${ext_if}) -lt 1 ]; then
     log warn "No pf NAT set up"
-    if [ $(check_ext_if) -lt 1 ]; then
-      log warn "External interface specified in settings not available"
-    else
-      log info "Writing NAT rule into ${PF_CONF}"
-      ${ECHO} "nat on ${ext_if} inet from ${nat_keyword} to any -> (${ext_if})" >> ${PF_CONF}
-      log info "Loading pf conf ${PF_CONF}"
-      ${PFCTL} -f ${PF_CONF} 
-      if [ $(nat_count ${nat_keyword} ${ext_if}) -lt 1 ]; then
-        log warn "Failed to load pf NAT with ${PF_CONF}"
-      fi
+    log info "Writing NAT rule into ${PF_CONF}"
+    ${ECHO} "nat on ${ext_if} inet from ${nat_keyword} to any -> (${ext_if})" >> ${PF_CONF}
+    log info "Loading pf conf ${PF_CONF}"
+    ${PFCTL} -f ${PF_CONF}
+    if [ $(nat_count ${nat_keyword} ${ext_if}) -lt 1 ]; then
+      log warn "Failed to load pf NAT with ${PF_CONF}"
     fi
   fi
 }

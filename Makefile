@@ -25,22 +25,12 @@ SUB_LIST= PREFIX=${PREFIX} \
           VERSION=${VERSION} \
           GUEST_ROOT=${GUEST_ROOT}
 
-# Use route to get the IPv4 default interface
-GATE!= ${ROUTE} -n get -inet default | ${GREP} 'interface:' | ${AWK} '{ print $$2 }'
-.if empty(GATE)
-GATE=ue0
-.endif
-SUB_LIST+= EXT_IF=${GATE}
-
-_SUB_LIST_EXP= ${SUB_LIST:S/$/!g/:S/^/ -e s!%%/:S/=/%%!/}
-
 install:
 	${MKDIR} -p ${BINDIR}
 	${INSTALL} -m 0755 sbin/dockerbox ${BINDIR}/dockerbox
 
 	${MKDIR} -p ${ETCDIR}/dockerbox
 	${INSTALL} -m 0755 etc/dockerbox.conf ${ETCDIR}/dockerbox/dockerbox.conf
-	${SED} ${_SUB_LIST_EXP} etc/dockerbox.conf > ${ETCDIR}/dockerbox/dockerbox.conf
 
 	${MKDIR} -p ${RCDIR}
 	${INSTALL} -m 0755 rc.d/dockerbox ${RCDIR}/dockerbox
