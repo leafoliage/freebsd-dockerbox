@@ -353,7 +353,7 @@ vm_manager() {
   check_configuration ${CONFIG}
 
   cpu=1
-  memory=512M
+  memory=1024M
   console="yes"
 
   log info "Pulling options from configuration file"
