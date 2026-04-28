@@ -21,7 +21,7 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${KILL:=/bin/kill}"
 : "${PGREP:=/bin/pgrep}"
 : "${TOUCH:=/usr/bin/touch}"
-: "${SHA256:=/sbin/sha256}"
+: "${SHA256:=/sbin/sha256sum}"
 : "${TAR:=/usr/bin/tar}"
 : "${RM:=/bin/rm}"
 : "${TRUNCATE:=/usr/bin/truncate}"
@@ -512,7 +512,7 @@ dockerbox_fetch() {
   ${FETCH} -o ${TMPDIR} https://github.com/leafoliage/freebsd-dockerbox-debian/releases/download/v${DISKVERSION}/dockerbox-img-${DISKVERSION}.tar.zstd
 
   tarball=${TMPDIR}/${DISKRELEASE}.tar.zstd
-  if [ "$(${SHA256} -q ${tarball})" != "${DISK_IMG_SUM}" ]; then
+  if [ "$(${SHA256} --quiet ${tarball})" != "${DISK_IMG_SUM}" ]; then
     ${RM} ${tarball}
     log error "Dockerbox image checksum unmatch"
     exit 1
