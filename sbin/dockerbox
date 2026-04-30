@@ -37,6 +37,8 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${CU:=/usr/bin/cu}"
 : "${MKDIR:=/bin/mkdir}"
 : "${MKFS:=/usr/local/sbin/mkfs.ext4}"
+: "${SEQ:=/usr/bin/seq}"
+: "${SLEEP:=/bin/sleep}"
 
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
 : "${NMDM_KO:=/boot/kernel/nmdm.ko}"
@@ -73,9 +75,10 @@ log() {
   local _message="$2"
   local _timestamp
 
-  if [ ${_level} == "warn" ] || [ ${_level} == "error" ]; then
-    ${ECHO} "${_message}"
-  fi
+  case ${_level} in
+    error) ${ECHO} "ERROR: ${_message}";;
+    warn) ${ECHO} "WARNING: ${_message}";;
+  esac
 
   _level="$(${ECHO} $_level | tr "[:lower:]" "[:upper:]")"
   _timestamp="$(date +'%FT%H:%M:%S%z')"
@@ -141,8 +144,7 @@ assert_kmod_loaded() {
   log debug "assert loaded: kmod=${_kmod}, kmod_file=${_kmod_file}"
 
   if ! ${KLDSTAT} -q -m "${_kmod}"; then
-    log warn "Kernel module ${_kmod} is not loaded"
-    log warn "Loading kernel module ${_kmod}"
+    log warn "Kernel module ${_kmod} is not loaded. Loading kernel module ${_kmod}"
 
     if ! (${KLDLOAD} "${_kmod_file}" 2>&1 | capture_output debug kldload); then
       log error "${_kmod_file} kernel module could not be loaded"
@@ -200,8 +202,7 @@ check_pf() {
   nat_keyword="$(${ECHO} ${nat_ip} | cut -d'.' -f1-3).0/${nat_mask}"
 
   if [ $(nat_count ${nat_keyword} ${ext_if}) -lt 1 ]; then
-    log warn "No pf NAT set up"
-    log info "Writing NAT rule into ${PF_CONF}"
+    log warn "No pf NAT set up. Writing NAT rule into ${PF_CONF}"
     ${ECHO} "nat on ${ext_if} inet from ${nat_keyword} to any -> (${ext_if})" >> ${PF_CONF}
     log info "Loading pf conf ${PF_CONF}"
     ${PFCTL} -f ${PF_CONF}
@@ -299,6 +300,10 @@ get_vm_manager_pid() {
   ${PGREP} -fx "daemon: ${VM_MANAGER_DAEMON_ID}\[[0-9]*\]"
 }
 
+get_vm_pid() {
+    ${PGREP} -fx "bhyve: ${DOCKERBOX_VM}"
+}
+
 gen_docker_image() {
   local _docker_mddev
 
@@ -315,30 +320,30 @@ gen_docker_image() {
 
 check_device_map() {
   if [ ! -f ${DEVICE_MAP} ]; then
-    log warn "Device map not found. Generating device map at ${DEVICE_MAP}."
+    log warn "Device map not found. Generating device map at ${DEVICE_MAP}"
     ${ECHO} "(hd0) ${DISK_IMAGE}" > ${DEVICE_MAP}
   fi
 }
 
 check_docker_image() {
   if [ ! -f ${DOCKER_IMAGE} ]; then
-    log warn "Docker image not found. Generating docker image at ${DOCKER_IMAGE}."
+    log warn "Docker image not found. Generating docker image at ${DOCKER_IMAGE}. This may exceed startup time limit check"
     gen_docker_image
-    log info "Empty docker image generated."
+    log info "Empty docker image generated"
   fi
 }
 
 check_docker_image_fs() {
   _md_dev=$(${MDCONFIG} ${DOCKER_IMAGE})
   if [ ! -e /dev/${_md_dev}s1 ]; then
-    log warn "No partition found in ${DOCKER_IMAGE}. Creating one."
+    log warn "No partition found in ${DOCKER_IMAGE}. Creating one"
     ${GPART} add -t linux-data ${_docker_mddev}
     log warn "Added partition to ${DOCKER_IMAGE}"
   fi
   if [ -z "$(file -s /dev/${_md_dev}s1 | grep 'Linux rev 1.0 ext4')" ]; then
-    log warn "No ext4 file system found in ${DOCKER_IMAGE}. Making one."
+    log warn "No ext4 file system found in ${DOCKER_IMAGE}. Making one"
     ${MKFS} -q /dev/${_md_dev}s1
-    log warn "Made ext4 file system in ${DOCKER_IMAGE}."
+    log warn "Made ext4 file system in ${DOCKER_IMAGE}"
   fi
   ${MDCONFIG} -du ${_md_dev}
 }
@@ -358,11 +363,6 @@ vm_manager() {
 
   log info "Pulling options from configuration file"
   . ${CONFIG}
-
-  if [ ! -f ${DISK_IMAGE} ]; then
-    log error "Disk image not installed. Please run 'dockerbox fetch'."
-    exit 1
-  fi
 
   check_vmm
   check_nat
@@ -387,8 +387,8 @@ vm_manager() {
 
 dockerbox_start() {
   local _pid
+  local _start_wait_max=10
 
-  _run_console="$1"
   _pid="$(get_vm_manager_pid)"
 
   if [ -n "${_pid}" ]; then
@@ -397,27 +397,28 @@ dockerbox_start() {
   fi
 
   if [ ! -f ${DISK_IMAGE} ]; then
-    log error "Disk image not installed. Please run 'dockerbox fetch'."
+    log error "Disk image not installed. Please run 'dockerbox fetch'"
     exit 1
   fi
 
-  console="yes"
-
-  check_configuration ${CONFIG}
-  . ${CONFIG}
-
-  ${KLDSTAT} -q -m vmm || log warn "vmm.ko not loaded. vmm.ko will be loaded"
-  ${KLDSTAT} -q -m pf || log warn "pf.ko not loaded. pf.ko will be loaded"
-  if [ "${console}" == "yes" ]; then
-    ${KLDSTAT} -q -m nmdm || log warn "nmdm.ko not loaded. nmdm.ko will be loaded. Change this behavior in ${CONFIG}"
-  fi
-
-  check_device_map
-  check_docker_image
-  check_docker_image_fs
-
   log info "Start dockerbox daemon"
   ${DAEMON} -r -t "${VM_MANAGER_DAEMON_ID}" "${0}" _manage_vm
+
+  for i in $(${SEQ} 1 ${_start_wait_max}); do
+    ${SLEEP} 1
+
+    _pid=$(get_vm_pid)
+
+    log debug "Waiting for bhyve to start up: [${i}/${_start_wait_max}]: [${_pid}]"
+
+    if [ -n "${_pid}" ]; then
+      log info "Guest ${DOCKERBOX_VM} has started as PID ${_pid}"
+      ${ECHO} "dockerbox started"
+      exit
+    fi
+  done
+
+  log warn "Guest is not up after ${_start_wait_max} seconds"
 }
 
 dockerbox_console() {
