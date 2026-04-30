@@ -39,6 +39,7 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${MKFS:=/usr/local/sbin/mkfs.ext4}"
 : "${SEQ:=/usr/bin/seq}"
 : "${SLEEP:=/bin/sleep}"
+: "${BHYVECTL:=/usr/sbin/bhyvectl}"
 
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
 : "${NMDM_KO:=/boot/kernel/nmdm.ko}"
@@ -134,6 +135,8 @@ check_ext_if() {
 assert_kmod_loaded() {
   local _kmod="$1"
   local _kmod_file
+  local _kldload_out
+  local _rc
 
   if [ -n "$2" ]; then
     _kmod_file="$2"
@@ -146,7 +149,10 @@ assert_kmod_loaded() {
   if ! ${KLDSTAT} -q -m "${_kmod}"; then
     log warn "Kernel module ${_kmod} is not loaded. Loading kernel module ${_kmod}"
 
-    if ! (${KLDLOAD} "${_kmod_file}" 2>&1 | capture_output debug kldload); then
+    _kldload_out=$(${KLDLOAD} "${_kmod_file}" 2>&1)
+    _rc=$?
+    ${ECHO} "${_kldload_out}" | capture_output debug kldload
+    if [ ${_rc} -ne 0 ]; then
       log error "${_kmod_file} kernel module could not be loaded"
       exit 127
     fi
@@ -159,7 +165,7 @@ nat_count() {
   local _nat_keyword="$1"
   local _ext_if="$2"
   log debug "assert NAT loaded: nat_if=${_nat_keyword} ext_if=${_ext_if}"
-  ${PFCTL} -s nat | grep nat | grep ${_nat_keyword} | grep ${_ext_if} -c
+  ${PFCTL} -s nat | ${GREP} nat | ${GREP} ${_nat_keyword} | ${GREP} ${_ext_if} -c
 }
 
 detect_ext_if() {
@@ -176,7 +182,7 @@ check_pf() {
   check_configuration ${CONFIG}
   . ${CONFIG}
 
-  if [ "${ext_if}" == "auto" ]; then
+  if [ "${ext_if}" = "auto" ]; then
     log info "ext_if=auto configured. Detecting external interface"
     ext_if=$(detect_ext_if)
     if [ -z "${ext_if}" ]; then
@@ -188,7 +194,7 @@ check_pf() {
     log warn "External interface specified in settings not available"
   fi
 
-  if [ ! $(${PFCTL} -s Running) == "Enabled" ]; then
+  if [ ! $(${PFCTL} -s Running) = "Enabled" ]; then
     log info "Enabling PF"
     ${PFCTL} -e
   fi
@@ -232,7 +238,7 @@ create_bridge() {
 }
 
 destroy_bridge() {
-  if [ has_bridge_interface ]; then
+  if has_bridge_interface; then
     log info "Destroying bridge interface: ${DOCKERBOX_IF}"
     ${IFCONFIG} ${DOCKERBOX_IF} destroy 2>&1 | capture_output debug ifconfig
   fi
@@ -337,7 +343,7 @@ check_docker_image_fs() {
   _md_dev=$(${MDCONFIG} ${DOCKER_IMAGE})
   if [ ! -e /dev/${_md_dev}s1 ]; then
     log warn "No partition found in ${DOCKER_IMAGE}. Creating one"
-    ${GPART} add -t linux-data ${_docker_mddev}
+    ${GPART} add -t linux-data ${_md_dev}
     log warn "Added partition to ${DOCKER_IMAGE}"
   fi
   if [ -z "$(file -s /dev/${_md_dev}s1 | grep 'Linux rev 1.0 ext4')" ]; then
@@ -374,7 +380,7 @@ vm_manager() {
   _grub_args="-m ${DEVICE_MAP} -r hd0,msdos1 -M ${memory}"
   _bhyve_args="-A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -s 4:0,virtio-blk,${DOCKER_IMAGE} -c ${cpu} -m ${memory}"
 
-  if [ "${console}" == "yes" ]; then
+  if [ "${console}" = "yes" ]; then
     check_nmdm
     _bhyve_args="${_bhyve_args} -l com1,${NMDM_A}"
   fi
@@ -443,15 +449,21 @@ dockerbox_console() {
   ${CU} -s 115200 -l ${NMDM_B}
   log info "Detached from the guest"
   ${ECHO} "Finished."
-  log info "End: wifibox console"
+  log info "End: dockerbox console"
 }
 
 dockerbox_stop() {
   local _pid
+
   _pid="$(get_vm_manager_pid)"
+  if [ -z "${_pid}" ]; then
+    log warn "Dockerbox is not running"
+    exit 1
+  fi
+
   log info "Stopping guest ${DOCKERBOX_VM}, managed by PID ${_pid}"
   ${KILL} -SIGKILL "${_pid}" 2>&1 | capture_output debug kill
-  bhyvectl --destroy --vm=${DOCKERBOX_VM}
+  ${BHYVECTL} --destroy --vm=${DOCKERBOX_VM}
   destroy_tap
   destroy_bridge
   log info "Dockerbox stopped: killed pid=${_pid}"
@@ -483,7 +495,7 @@ dockerbox_resize() {
     exit 1
   fi
 
-  size=$(${ECHO} "$1" | egrep "[1-9][0-9]*[0-9]*[GgMm]")
+  size=$(${ECHO} "$1" | ${GREP} -E "[1-9][0-9]*[0-9]*[GgMm]")
   if [ "$?" -ne 0 ]; then
     log error "Invalid size argument"
     exit 1
@@ -498,12 +510,14 @@ dockerbox_resize() {
 
   if [ "$(${FILE} -s ${partition} | ${AWK} '{ print $5 }')" != "ext4" ]; then
     log error "File system type mismatch"
+    ${MDCONFIG} -du ${mdev_name}
     exit 1
   fi
 
   ${GPART} resize -a 4k -i ${part_index} /dev/${mdev_name}
   ${E2FSCK} -f ${partition}
   ${RESIZE2FS} ${partition}
+  ${MDCONFIG} -du ${mdev_name}
 }
 
 dockerbox_fetch() {
@@ -520,9 +534,9 @@ dockerbox_fetch() {
     fi
   fi
 
-  log debug "Fetch dockerbox disk imgage"
-  if [ $? -ne 0 ]; then exit 1; fi
+  log debug "Fetch dockerbox disk image"
   ${FETCH} -o ${TMPDIR} https://github.com/leafoliage/freebsd-dockerbox-debian/releases/download/v${DISKVERSION}/dockerbox-img-${DISKVERSION}.tar.zstd
+  if [ $? -ne 0 ]; then exit 1; fi
 
   tarball=${TMPDIR}/${DISKRELEASE}.tar.zstd
   if [ "$(${SHA256} -q ${tarball})" != "${DISK_IMG_SUM}" ]; then
