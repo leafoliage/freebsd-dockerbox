@@ -35,7 +35,7 @@ make fetch-disk
 Install helper packages.
 
 ```sh
-pkg install grub2-bhyve e2fsprogs docker
+pkg install grub2-bhyve e2fsprogs docker docker-compose
 ```
 
 > There is a recent patch for `grub2-bhve` essential to dockerbox. Please make sure the "latest" package repository is used instead of quarterly. Check with `pkg -vv`. Otherwise, `grub2-bhyve` should be built from port.
@@ -126,13 +126,58 @@ tar -c -f - "$1" | docker -H 10.0.0.1:2375 cp - "$2"
 ./dockerbox-cp /path/to/dir nginx:/usr/share/nginx/html/
 ```
 
+If you really have to use bind mount, `scp` is available, and files should be copied into the dockerbox guest to be bind-mountable.
+
 ### Docker volumes
 
 Docker volumes are managed by docker in dockerbox, so they can be normally used.
 
 ### Docker compose
 
-Docker compose functionalities are still under testing.
+> Docker compose functionalities are still under testing.
+
+We would need a specific version of `docker` Python SDK for `docker-compose` to run.
+
+First make sure you have pip installed.
+
+```
+pkg install py311-pip
+```
+
+Install `docker[tls]==6.1.3` with pip.
+
+```
+pip install 'docker[tls]==6.1.3'
+```
+
+Install `docker-compose` package.
+
+```
+pkg install docker-compose
+```
+
+Use [awesome-compose/nextcloud-redis-mariadb](https://github.com/docker/awesome-compose/blob/master/nextcloud-redis-mariadb/compose.yaml) as example. Start this docker compose.
+
+> Add 'version: "3"' add the beginning of the compose file. `docker-compose` requires it.
+
+```
+docker-compose -H tcp://10.0.0.1:2375 up -d
+```
+
+Port forward with `socat` if you want to access it on host.
+
+```
+socat TCP4-LISTEN:8080,fork,reuseaddr TCP4:10.0.0.1:80
+```
+
+If building docker container is involved during `docker-compose up`, it is recommended to first export `DOCKER_HOST=tcp://10.0.0.1:2375`.
+
+```
+export DOCKER_HOST=tcp://10.0.0.1:2375
+docker-compose up -d
+```
+
+Aware relative paths used in `volumes`; it would be resolved into path on host, which likely doesn't exist on dockerbox. For example, binding volume `./src:/app` when the docker compose command is issued at `/home/username` on host, would result in `/home/username/src` on dockerbox being bind mounted. It is recommended to use **absolute path on dockerbox** instead.
 
 ## Configs
 
