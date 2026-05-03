@@ -179,6 +179,14 @@ docker-compose up -d
 
 Aware relative paths used in `volumes`; it would be resolved into path on host, which likely doesn't exist on dockerbox. For example, binding volume `./src:/app` when the docker compose command is issued at `/home/username` on host, would result in `/home/username/src` on dockerbox being bind mounted. It is recommended to use **absolute path on dockerbox** instead.
 
+### Upgrade dockerbox root disk
+
+Make sure new version of `sbin/dockerbox` is installed, then upgrade root disk. It would prompt for permission to replace old disk, enter 'y' to proceed.
+
+```
+dockerbox fetch
+```
+
 ## Configs
 
 ```
