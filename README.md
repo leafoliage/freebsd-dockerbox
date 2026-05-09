@@ -86,6 +86,8 @@ Resize docker data storage.
 dockerbox resize 1G
 ```
 
+> Currently only extending storage is supported.
+
 Access dockerbox console with dockerbox built in `console` command or `ssh`.
 
 ```sh
@@ -93,88 +95,16 @@ dockerbox console
 ssh dockerbox@10.0.0.1
 ```
 
-> Currently only extending storage is supported.
-
 Log is at `/var/log/dockerbox.log`
 
-### Publishing and exposing ports
+### Advanced Usages
 
-Dockerbox currently doesn't support port forwarding from host to dockerbox, all docker exposed ports should be accessed at dockerbox's IP address.
+Refer to the [wiki](https://github.com/leafoliage/freebsd-dockerbox/wiki) for advanced usages:
 
-```sh
-docker -H 10.0.0.1:2375 run -p 8080:80 --name nginx -d nginx
-fetch http://10.0.0.1:8080
-```
-
-### Bind mounts
-
-Dockerbox doesn't support bind mounting from host into dockerbox's docker container.
-
-To make host files/directories accessible to containers, use `docker cp`.
-
-```sh
-docker -H 10.0.0.1:2375 cp -r /path/to/file nginx:/usr/share/nginx/html/
-```
-
-Note that `docker cp` is incompatible with FreeBSD directories, so manually tarring the directory is requried.
-
-```sh
-tar -c -f - /path/to/dir | docker -H 10.0.0.1:2375 cp - nginx:/usr/share/nginx/html/
-```
-
-Here is a helper script for copying directory.
-
-```sh
-#!/bin/sh
-[ -z "$2" ] && echo "Usage: $0 SRC_PATH CONTAINER_DST_PATH" && exit 1
-tar -c -f - "$1" | docker -H 10.0.0.1:2375 cp - "$2"
-```
-
-```sh
-./dockerbox-cp /path/to/dir nginx:/usr/share/nginx/html/
-```
-
-Alternatively, `scp` files/directories into dockerbox to be bind-mount.
-
-### Docker volumes
-
-Docker volumes are managed by docker in dockerbox, so they can be normally used.
-
-### Docker compose
-
-> [!WARNING]
-> Docker compose compatibility is still under testing.
-
-Install docker compose.
-
-> [!IMPORTANT]
-> There is a recent update to `docker-compose` port.
-> Please make sure the "**latest**" package repository is used instead of quarterly. Check with `pkg -vv`.
-
-```
-pkg install docker-compose
-```
-
-Use [awesome-compose/nextcloud-redis-mariadb](https://github.com/docker/awesome-compose/blob/master/nextcloud-redis-mariadb/compose.yaml) as example. Start this docker compose.
-
-```
-docker-compose -H tcp://10.0.0.1:2375 up -d
-```
-
-Port forward with `socat` if you want to access it on host.
-
-```
-socat TCP4-LISTEN:8080,fork,reuseaddr TCP4:10.0.0.1:80
-```
-
-Nextcloud should be accessible at `localhost:8080`.
-
-If building docker container is involved during `docker-compose up`, it is recommended to first export `DOCKER_HOST=tcp://10.0.0.1:2375`.
-
-```
-export DOCKER_HOST=tcp://10.0.0.1:2375
-docker-compose up -d
-```
+- [Port publishing and mapping](https://github.com/leafoliage/freebsd-dockerbox/wiki/Port-publishing-and-mapping)
+- [Bind mounts](https://github.com/leafoliage/freebsd-dockerbox/wiki/Bind-mounts)
+- [Docker volumes](https://github.com/leafoliage/freebsd-dockerbox/wiki/Docker-volumes)
+- [Docker compose](https://github.com/leafoliage/freebsd-dockerbox/wiki/Docker-compose)
 
 ### Upgrade dockerbox root disk
 
@@ -186,17 +116,19 @@ dockerbox fetch
 
 ## Configs
 
+- Default config
+
 ```
 # /usr/local/etc/dockerbox/dockerbox.conf
-cpu: cpu cores for dockerbox
-memory: RAM for dockerbox
-ext_if: the external network interface
-nat_ip: the IP address for NAT gateway
-nat_mask: netmask for NAT
-console: start dockerbox with a nmdm device or not
+cpu=1
+memory=1024M
+ext_if=auto
+nat_ip=10.0.0.254
+nat_mask=24
+console=yes
 ```
 
-> The ip address of dockerbox is currently fixed to 10.0.0.1
+Refer to [wiki/Configuration](https://github.com/leafoliage/freebsd-dockerbox/wiki/Configuration) for details.
 
 ## Dockerbox Structure
 
