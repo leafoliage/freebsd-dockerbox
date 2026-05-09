@@ -1,12 +1,13 @@
 # FreeBSD-Dockerbox
 
-This project is still a work in progress.
+> [!NOTE]  
+> This project is still a work in progress.
 
-This project aims to provide usage of docker on FreeBSD by installing and running dockerd inside a linux bhyve vm called dockerbox.
+Dockerbox provides docker on FreeBSD by running dockerd inside a Linux Bhyve VM.
 
 ## Project Structure
 
-This repository (`freebsd-docker`) holds the core files to run a dockerbox service, including rc script and configs.
+This repository (`freebsd-docker`) holds the core files to run the dockerbox service, including rc script and configs.
 
 [freebsd-dockerbox-debian](https://github.com/leafoliage/freebsd-dockerbox-debian) is the repository for dockerbox's underlying disk images.
 
@@ -85,6 +86,13 @@ Resize docker data storage.
 dockerbox resize 1G
 ```
 
+Access dockerbox console with dockerbox built in `console` command or `ssh`.
+
+```sh
+dockerbox console
+ssh dockerbox@10.0.0.1
+```
+
 > Currently only extending storage is supported.
 
 Log is at `/var/log/dockerbox.log`
@@ -126,7 +134,7 @@ tar -c -f - "$1" | docker -H 10.0.0.1:2375 cp - "$2"
 ./dockerbox-cp /path/to/dir nginx:/usr/share/nginx/html/
 ```
 
-If you really have to use bind mount, `scp` is available, and files should be copied into the dockerbox guest to be bind-mountable.
+Alternatively, `scp` files/directories into dockerbox to be bind-mount.
 
 ### Docker volumes
 
@@ -134,31 +142,20 @@ Docker volumes are managed by docker in dockerbox, so they can be normally used.
 
 ### Docker compose
 
-> Docker compose functionalities are still under testing.
+> [!WARNING]
+> Docker compose compatibility is still under testing.
 
-We would need a specific version of `docker` Python SDK for `docker-compose` to run.
+Install docker compose.
 
-First make sure you have pip installed.
-
-```
-pkg install py311-pip
-```
-
-Install `docker[tls]==6.1.3` with pip.
-
-```
-pip install 'docker[tls]==6.1.3'
-```
-
-Install `docker-compose` package.
+> [!IMPORTANT]
+> There is a recent update to `docker-compose` port.
+> Please make sure the "**latest**" package repository is used instead of quarterly. Check with `pkg -vv`.
 
 ```
 pkg install docker-compose
 ```
 
 Use [awesome-compose/nextcloud-redis-mariadb](https://github.com/docker/awesome-compose/blob/master/nextcloud-redis-mariadb/compose.yaml) as example. Start this docker compose.
-
-> Add 'version: "3"' add the beginning of the compose file. `docker-compose` requires it.
 
 ```
 docker-compose -H tcp://10.0.0.1:2375 up -d
@@ -170,14 +167,14 @@ Port forward with `socat` if you want to access it on host.
 socat TCP4-LISTEN:8080,fork,reuseaddr TCP4:10.0.0.1:80
 ```
 
+Nextcloud should be accessible at `localhost:8080`.
+
 If building docker container is involved during `docker-compose up`, it is recommended to first export `DOCKER_HOST=tcp://10.0.0.1:2375`.
 
 ```
 export DOCKER_HOST=tcp://10.0.0.1:2375
 docker-compose up -d
 ```
-
-Aware relative paths used in `volumes`; it would be resolved into path on host, which likely doesn't exist on dockerbox. For example, binding volume `./src:/app` when the docker compose command is issued at `/home/username` on host, would result in `/home/username/src` on dockerbox being bind mounted. It is recommended to use **absolute path on dockerbox** instead.
 
 ### Upgrade dockerbox root disk
 
@@ -198,8 +195,6 @@ nat_ip: the IP address for NAT gateway
 nat_mask: netmask for NAT
 console: start dockerbox with a nmdm device or not
 ```
-
-> The `make install` command automatically detects the default gateway interface for connecting to the Internet.
 
 > The ip address of dockerbox is currently fixed to 10.0.0.1
 
