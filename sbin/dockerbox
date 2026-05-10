@@ -53,6 +53,7 @@ DISK_IMAGE="${GUEST_ROOT}/disk.img"
 DOCKER_IMAGE="${GUEST_ROOT}/docker.img"
 DOCKER_DISK_SIZE=20G
 DEVICE_MAP="${GUEST_ROOT}/device.map"
+DISK_VERSION_FILE="${GUEST_ROOT}/disk-version"
 VM_MANAGER_DAEMON_ID="dockerbox-vm-manager"
 CONFIG="${CONF_DIR}/dockerbox.conf"
 NAT_IP="10.0.0.254"
@@ -534,7 +535,7 @@ dockerbox_fetch() {
     fi
   fi
 
-  log debug "Fetch dockerbox disk image"
+  log debug "Fetch dockerbox disk image v${DISKVERSION}"
   ${FETCH} -o ${TMPDIR} https://github.com/leafoliage/freebsd-dockerbox-debian/releases/download/v${DISKVERSION}/dockerbox-img-${DISKVERSION}.tar.zstd
   if [ $? -ne 0 ]; then exit 1; fi
 
@@ -547,7 +548,8 @@ dockerbox_fetch() {
   ${TAR} -C ${TMPDIR} -xf ${tarball}
   ${MKDIR} -p ${GUEST_ROOT}
   ${INSTALL} -m 0644 ${TMPDIR}/${DISKRELEASE}/* ${GUEST_ROOT}
-  log info "Dockerbox disk image installed to ${DISK_IMAGE}"
+  ${ECHO} ${DISKVERSION} > ${DISK_VERSION_FILE}
+  log info "Dockerbox disk image v${DISKVERSION} installed to ${DISK_IMAGE}"
 }
 
 
