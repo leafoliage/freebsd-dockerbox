@@ -67,10 +67,20 @@ Starting dockerbox.
 service dockerbox start
 ```
 
-Export `DOCKER_HOST` and run docker commands.
+Setup docker context for dockerbox.
 
 ```sh
-export DOCKER_HOST=10.0.0.1:2375
+docker context create dockerbox --docker "host=ssh://dockerbox@10.0.0.1"
+docker context use dockerbox
+
+# Altervatively, for one-shot use quickstart
+docker -H tcp://10.0.0.1:2375 ps
+export DOCKER_HOST=tcp://10.0.0.1:2375; docker ps
+```
+
+Docker run.
+
+```sh
 docker run hello-world
 ```
 
