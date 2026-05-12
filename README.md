@@ -72,8 +72,11 @@ Setup docker context for dockerbox.
 ```sh
 docker context create dockerbox --docker "host=ssh://dockerbox@10.0.0.1"
 docker context use dockerbox
+```
 
-# Altervatively, for one-shot use quickstart
+Altervatively, for one-shot use.
+
+```sh
 docker -H tcp://10.0.0.1:2375 ps
 export DOCKER_HOST=tcp://10.0.0.1:2375; docker ps
 ```
