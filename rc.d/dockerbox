@@ -1,7 +1,6 @@
 #! /bin/sh
 
 # PROVIDE: dockerbox
-# BEFORE: netif
 # REQUIRE: FILESYSTEMS sysctl kld
 # KEYWORD: shutdown nojail suspend resume
 
