@@ -387,9 +387,24 @@ vm_manager() {
   fi
 
   log debug "Grub arguments: ${_grub_args}"
-  env TERM=xterm-256color ${GRUB_BHYVE} ${_grub_args} ${DOCKERBOX_VM} 2>&1 | capture_output debug grub-bhyve
-  log debug "Bhyve arguments: ${_bhyve_args}"
-  ${BHYVE} ${_bhyve_args} ${DOCKERBOX_VM} 2>&1 | capture_output debug bhyve
+  grub_output=$(env TERM=xterm-256color ${GRUB_BHYVE} ${_grub_args} ${DOCKERBOX_VM} 2>&1)
+  grub_rc=$?
+  if [ ${grub_rc} -eq 0 ]; then
+    ${ECHO} ${grub_output} | capture_output debug grub-bhyve
+    log debug "Bhyve arguments: ${_bhyve_args}"
+    bhyve_output=$(${BHYVE} ${_bhyve_args} ${DOCKERBOX_VM} 2>&1)
+    bhyve_rc=$?
+    if [ ${bhyve_rc} -eq 0 ]; then
+      ${ECHO} ${bhyve_output} | capture_output debug bhyve
+    else
+      ${ECHO} ${bhyve_output} | capture_output error bhyve
+    fi
+  else
+    ${ECHO} ${grub_output} | capture_output error grub-bhyve
+  fi
+
+  destroy_tap
+  destroy_bridge
 }
 
 dockerbox_start() {
@@ -409,7 +424,7 @@ dockerbox_start() {
   fi
 
   log info "Start dockerbox daemon"
-  ${DAEMON} -r -t "${VM_MANAGER_DAEMON_ID}" "${0}" _manage_vm
+  ${DAEMON} -t "${VM_MANAGER_DAEMON_ID}" "${0}" _manage_vm
 
   for i in $(${SEQ} 1 ${_start_wait_max}); do
     ${SLEEP} 1
@@ -465,8 +480,6 @@ dockerbox_stop() {
   log info "Stopping guest ${DOCKERBOX_VM}, managed by PID ${_pid}"
   ${KILL} -SIGKILL "${_pid}" 2>&1 | capture_output debug kill
   ${BHYVECTL} --destroy --vm=${DOCKERBOX_VM}
-  destroy_tap
-  destroy_bridge
   log info "Dockerbox stopped: killed pid=${_pid}"
 }
 
