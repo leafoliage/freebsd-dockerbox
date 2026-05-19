@@ -40,6 +40,7 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${SEQ:=/usr/bin/seq}"
 : "${SLEEP:=/bin/sleep}"
 : "${BHYVECTL:=/usr/sbin/bhyvectl}"
+: "${NC:=/usr/bin/nc}"
 
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
 : "${NMDM_KO:=/boot/kernel/nmdm.ko}"
@@ -57,6 +58,8 @@ DISK_VERSION_FILE="${GUEST_ROOT}/disk-version"
 VM_MANAGER_DAEMON_ID="dockerbox-vm-manager"
 CONFIG="${CONF_DIR}/dockerbox.conf"
 NAT_IP="10.0.0.254"
+DOCKERBOX_IP="10.0.0.1"
+DOCKERBOX_PORT=2375
 DAEMON_PID_FILE=/var/run/dockerbox-daemon.pid
 DOCKERBOX_PID_FILE=/var/run/dockerbox.pid
 
@@ -313,6 +316,18 @@ get_dockerbox_pid() {
   [ -f ${DOCKERBOX_PID_FILE} ] && cat ${DOCKERBOX_PID_FILE}
 }
 
+get_dockerbox_status() {
+  if [ -n "$(get_dockerbox_pid)" ]; then
+    if ${NC} -z -w 1 ${DOCKERBOX_IP} ${DOCKERBOX_PORT} 2> /dev/null; then
+      return 0
+    else
+      return 1
+    fi
+  else
+    return 2
+  fi
+}
+
 gen_docker_image() {
   local _docker_mddev
 
@@ -411,7 +426,7 @@ vm_manager() {
 
 dockerbox_start() {
   local _pid
-  local _start_wait_max=10
+  local _start_wait_max=30
 
   _pid="$(get_daemon_pid)"
 
@@ -431,7 +446,7 @@ dockerbox_start() {
   for i in $(${SEQ} 1 ${_start_wait_max}); do
     ${SLEEP} 1
 
-    if [ -n "$(get_dockerbox_pid)" ]; then
+    if get_dockerbox_status; then
       log info "Guest ${DOCKERBOX_VM} has started as PID ${_pid}"
       ${ECHO} "dockerbox started"
       exit
@@ -486,20 +501,12 @@ dockerbox_stop() {
 }
 
 dockerbox_status() {
-  local _pid
-
-  log info "Begin: dockerbox status"
-
-  _pid="$(get_daemon_pid)"
-
-  if [ -n "${_pid}" ]; then
-    output "dockerbox is running as pid ${_pid}"
-  else
-    output "dockerbox is not running"
-    return 1
-  fi
-
-  log info "End: dockerbox status"
+  get_dockerbox_status
+  case $? in
+    0) ${ECHO} "dockerbox is running and dockerd is reachable." ;;
+    1) ${ECHO} "dockerbox is running, but dockerd is not reachable." ;;
+    2) ${ECHO} "dockerbox is not running." ;;
+  esac
 }
 
 dockerbox_resize() {
