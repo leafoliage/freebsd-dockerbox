@@ -57,6 +57,8 @@ DISK_VERSION_FILE="${GUEST_ROOT}/disk-version"
 VM_MANAGER_DAEMON_ID="dockerbox-vm-manager"
 CONFIG="${CONF_DIR}/dockerbox.conf"
 NAT_IP="10.0.0.254"
+DAEMON_PID_FILE=/var/run/dockerbox-daemon.pid
+DOCKERBOX_PID_FILE=/var/run/dockerbox.pid
 
 NMDM_DEVICE=/dev/nmdm-dockerbox
 NMDM_A="${NMDM_DEVICE}.1A"
@@ -303,12 +305,12 @@ check_nmdm() {
   assert_kmod_loaded "nmdm" "${NMDM_KO}"
 }
 
-get_vm_manager_pid() {
-  ${PGREP} -fx "daemon: ${VM_MANAGER_DAEMON_ID}\[[0-9]*\]"
+get_daemon_pid() {
+  [ -f ${DAEMON_PID_FILE} ] && cat ${DAEMON_PID_FILE}
 }
 
-get_vm_pid() {
-    ${PGREP} -fx "bhyve: ${DOCKERBOX_VM}"
+get_dockerbox_pid() {
+  [ -f ${DOCKERBOX_PID_FILE} ] && cat ${DOCKERBOX_PID_FILE}
 }
 
 gen_docker_image() {
@@ -411,7 +413,7 @@ dockerbox_start() {
   local _pid
   local _start_wait_max=10
 
-  _pid="$(get_vm_manager_pid)"
+  _pid="$(get_daemon_pid)"
 
   if [ -n "${_pid}" ]; then
     log warn "Guest is already run by PID ${_pid}, left intact"
@@ -424,19 +426,17 @@ dockerbox_start() {
   fi
 
   log info "Start dockerbox daemon"
-  ${DAEMON} -t "${VM_MANAGER_DAEMON_ID}" "${0}" _manage_vm
+  ${DAEMON} -p ${DOCKERBOX_PID_FILE} -P ${DAEMON_PID_FILE} -t "${VM_MANAGER_DAEMON_ID}" "${0}" _manage_vm
 
   for i in $(${SEQ} 1 ${_start_wait_max}); do
     ${SLEEP} 1
 
-    _pid=$(get_vm_pid)
-
-    log debug "Waiting for bhyve to start up: [${i}/${_start_wait_max}]: [${_pid}]"
-
-    if [ -n "${_pid}" ]; then
+    if [ -n "$(get_dockerbox_pid)" ]; then
       log info "Guest ${DOCKERBOX_VM} has started as PID ${_pid}"
       ${ECHO} "dockerbox started"
       exit
+    elif [ -z "$(get_daemon_pid)" ]; then
+      exit 1
     fi
   done
 
@@ -447,7 +447,7 @@ dockerbox_console() {
   local _pid
 
   log info "Begin: dockerbox console"
-  _pid="$(get_vm_manager_pid)"
+  _pid="$(get_daemon_pid)"
   log debug "Dockerbox pid: ${_pid}"
 
   if [ -z "${_pid}" ]; then
@@ -471,15 +471,17 @@ dockerbox_console() {
 dockerbox_stop() {
   local _pid
 
-  _pid="$(get_vm_manager_pid)"
+  _pid="$(get_daemon_pid)"
   if [ -z "${_pid}" ]; then
     log warn "Dockerbox is not running"
     exit 1
   fi
 
   log info "Stopping guest ${DOCKERBOX_VM}, managed by PID ${_pid}"
-  ${KILL} -SIGKILL "${_pid}" 2>&1 | capture_output debug kill
+  ${KILL} -SIGTERM "${_pid}" 2>&1 | capture_output debug kill
   ${BHYVECTL} --destroy --vm=${DOCKERBOX_VM}
+  destroy_tap
+  destroy_bridge
   log info "Dockerbox stopped: killed pid=${_pid}"
 }
 
@@ -488,7 +490,7 @@ dockerbox_status() {
 
   log info "Begin: dockerbox status"
 
-  _pid="$(get_vm_manager_pid)"
+  _pid="$(get_daemon_pid)"
 
   if [ -n "${_pid}" ]; then
     output "dockerbox is running as pid ${_pid}"
