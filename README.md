@@ -139,6 +139,7 @@ ext_if=auto
 nat_ip=10.0.0.254
 nat_mask=24
 console=yes
+start_wait_timeout=30
 ```
 
 Refer to [wiki/Configuration](https://github.com/leafoliage/freebsd-dockerbox/wiki/Configuration) for details.

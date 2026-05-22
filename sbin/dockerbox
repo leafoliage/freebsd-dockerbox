@@ -431,7 +431,7 @@ dockerbox_start() {
   _pid="$(get_daemon_pid)"
 
   if [ -n "${_pid}" ]; then
-    log warn "Guest is already run by PID ${_pid}, left intact"
+    log warn "${DOCKERBOX_VM} is already run by PID ${_pid}, left intact"
     return 1
   fi
 
@@ -440,22 +440,27 @@ dockerbox_start() {
     exit 1
   fi
 
-  log info "Start dockerbox daemon"
+  log info "Start ${DOCKERBOX_VM} daemon"
   ${DAEMON} -p ${DOCKERBOX_PID_FILE} -P ${DAEMON_PID_FILE} -t "${VM_MANAGER_DAEMON_ID}" "${0}" _manage_vm
+
+  check_configuration ${CONFIG}
+  . ${CONFIG}
+
+  _start_wait_max=${start_wait_timeout}
 
   for i in $(${SEQ} 1 ${_start_wait_max}); do
     ${SLEEP} 1
 
     if get_dockerbox_status; then
-      log info "Guest ${DOCKERBOX_VM} has started as PID ${_pid}"
-      ${ECHO} "dockerbox started"
+      log info "${DOCKERBOX_VM} has started as PID ${_pid}"
+      ${ECHO} "${DOCKERBOX_VM} started"
       exit
     elif [ -z "$(get_daemon_pid)" ]; then
       exit 1
     fi
   done
 
-  log warn "Guest is not up after ${_start_wait_max} seconds"
+  log warn "${DOCKERBOX_VM} service is not up after ${_start_wait_max} seconds. $(dockerbox_status)"
 }
 
 dockerbox_console() {
