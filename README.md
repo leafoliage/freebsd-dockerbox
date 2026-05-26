@@ -13,6 +13,15 @@ This repository (`freebsd-docker`) holds the core files to run the dockerbox ser
 
 [freebsd-dockerbox-port](https://github.com/leafoliage/freebsd-dockerbox-port) holds dockerbox's port related files.
 
+### Children Service
+
+Children services are optional, but they improve dockerbox usability. It is recommended to install them, too.
+
+They are automatically started by dockerbox in `dockerbox poststart` command if enabled.
+
+- [dockerbox-broker](https://github.com/leafoliage/dockerbox-broker)
+  - Maintains port forwarding from localhost to remote TCP docker host for ports binded on the remote host
+
 ## Quickstart
 
 ### Install from source

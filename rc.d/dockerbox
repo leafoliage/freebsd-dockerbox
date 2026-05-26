@@ -17,6 +17,8 @@ load_rc_config ${name}
 
 command="/usr/local/sbin/${name}"
 start_cmd="${command} start"
+start_postcmd="${command} poststart"
+stop_precmd="${command} prestop"
 stop_cmd="${command} stop"
 status_cmd="${command} status"
 suspend_cmd="/usr/bin/true"

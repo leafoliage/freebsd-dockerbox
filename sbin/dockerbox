@@ -40,7 +40,7 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${SEQ:=/usr/bin/seq}"
 : "${SLEEP:=/bin/sleep}"
 : "${BHYVECTL:=/usr/sbin/bhyvectl}"
-: "${NC:=/usr/bin/nc}"
+: "${SERVICE:=/usr/sbin/service}"
 
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
 : "${NMDM_KO:=/boot/kernel/nmdm.ko}"
@@ -318,7 +318,7 @@ get_dockerbox_pid() {
 
 get_dockerbox_status() {
   if [ -n "$(get_dockerbox_pid)" ]; then
-    if ${NC} -z -w 1 ${DOCKERBOX_IP} ${DOCKERBOX_PORT} 2> /dev/null; then
+    if ${FETCH} -qo /dev/null --timeout=1 "http://${DOCKERBOX_IP}:${DOCKERBOX_PORT}/_ping" > /dev/null 2>&1; then
       return 0
     else
       return 1
@@ -463,6 +463,12 @@ dockerbox_start() {
   log warn "${DOCKERBOX_VM} service is not up after ${_start_wait_max} seconds. $(dockerbox_status)"
 }
 
+dockerbox_poststart() {
+  if [ -n "$(${SERVICE} -e | ${GREP} dockerbox-broker)" ]; then
+    service dockerbox-broker start
+  fi
+}
+
 dockerbox_console() {
   local _pid
 
@@ -486,6 +492,12 @@ dockerbox_console() {
   log info "Detached from the guest"
   ${ECHO} "Finished."
   log info "End: dockerbox console"
+}
+
+dockerbox_prestop() {
+  if [ -n "$(${SERVICE} -e | ${GREP} dockerbox-broker)" ]; then
+    service dockerbox-broker stop
+  fi
 }
 
 dockerbox_stop() {
@@ -590,6 +602,8 @@ case ${command} in
   status) dockerbox_status;;
   fetch) dockerbox_fetch;;
   resize) dockerbox_resize $@;;
+  poststart) dockerbox_poststart;;
+  prestop) dockerbox_prestop;;
   _manage_vm) vm_manager;;
   *) ${ECHO} "${help_msg}";;
 esac
