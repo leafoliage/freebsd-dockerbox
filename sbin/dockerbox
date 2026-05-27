@@ -407,13 +407,10 @@ vm_manager() {
   grub_output=$(env TERM=xterm-256color ${GRUB_BHYVE} ${_grub_args} ${DOCKERBOX_VM} 2>&1)
   grub_rc=$?
   if [ ${grub_rc} -eq 0 ]; then
-    ${ECHO} ${grub_output} | capture_output debug grub-bhyve
     log debug "Bhyve arguments: ${_bhyve_args}"
     bhyve_output=$(${BHYVE} ${_bhyve_args} ${DOCKERBOX_VM} 2>&1)
     bhyve_rc=$?
-    if [ ${bhyve_rc} -eq 0 ]; then
-      ${ECHO} ${bhyve_output} | capture_output debug bhyve
-    else
+    if [ ${bhyve_rc} -ne 0 ]; then
       ${ECHO} ${bhyve_output} | capture_output error bhyve
     fi
   else
@@ -510,10 +507,8 @@ dockerbox_stop() {
   fi
 
   log info "Stopping guest ${DOCKERBOX_VM}, managed by PID ${_pid}"
-  ${KILL} -SIGTERM "${_pid}" 2>&1 | capture_output debug kill
+  ${BHYVECTL} --force-poweroff --vm=${DOCKERBOX_VM}
   ${BHYVECTL} --destroy --vm=${DOCKERBOX_VM}
-  destroy_tap
-  destroy_bridge
   log info "Dockerbox stopped: killed pid=${_pid}"
 }
 
