@@ -509,6 +509,8 @@ dockerbox_stop() {
   log info "Stopping guest ${DOCKERBOX_VM}, managed by PID ${_pid}"
   ${BHYVECTL} --force-poweroff --vm=${DOCKERBOX_VM}
   ${BHYVECTL} --destroy --vm=${DOCKERBOX_VM}
+  ${RM} -f ${DOCKERBOX_PID_FILE}
+  ${RM} -f ${DAEMON_PID_FILE}
   log info "Dockerbox stopped: killed pid=${_pid}"
 }
 
