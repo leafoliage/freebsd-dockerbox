@@ -540,24 +540,12 @@ dockerbox_resize() {
 
   ${TRUNCATE} -s "+${size}" ${DOCKER_IMAGE}
 
-  mdev_name=$(${MDCONFIG} ${DOCKER_IMAGE})
-  partition="/dev/${mdev_name}s${part_index}"
-
-  if [ "$(${FILE} -s ${partition} | ${AWK} '{ print $5 }')" != "ext4" ]; then
-    log error "File system type mismatch"
-    ${MDCONFIG} -du ${mdev_name}
-    exit 1
-  fi
-
-  ${GPART} resize -a 4k -i ${part_index} /dev/${mdev_name}
-  ${E2FSCK} -f ${partition}
-  ${RESIZE2FS} ${partition}
-  ${MDCONFIG} -du ${mdev_name}
+  log warn "Disk image extended, and will take effect on next start."
 }
 
 dockerbox_fetch() {
-  DISK_IMG_SUM=2568f0e28a375f129347e1100307bb162cc83e05475762c05aa3037164316828
-  DISKVERSION=0.3.1
+  DISK_IMG_SUM=4d2d08aebdab6247ce14b68886e0e3eb4afa8bb09af30df55064a7046223781b
+  DISKVERSION=0.4.0
   DISKRELEASE=dockerbox-img-${DISKVERSION}
   TMPDIR=/tmp
 
