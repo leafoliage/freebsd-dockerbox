@@ -79,6 +79,8 @@ service dockerbox start
 Setup docker context for dockerbox.
 
 ```sh
+# Choose either tcp or ssh
+docker context create dockerbox --docker "host=tcp://10.0.0.1:2375"
 docker context create dockerbox --docker "host=ssh://dockerbox@10.0.0.1"
 docker context use dockerbox
 ```
@@ -123,6 +125,7 @@ Log is at `/var/log/dockerbox.log`
 
 Refer to the [wiki](https://github.com/leafoliage/freebsd-dockerbox/wiki) for advanced usages:
 
+- [Docker context](https://github.com/leafoliage/freebsd-dockerbox/wiki/Docker-context)
 - [Port publishing and mapping](https://github.com/leafoliage/freebsd-dockerbox/wiki/Port-publishing-and-mapping)
 - [Bind mounts](https://github.com/leafoliage/freebsd-dockerbox/wiki/Bind-mounts)
 - [Docker volumes](https://github.com/leafoliage/freebsd-dockerbox/wiki/Docker-volumes)
