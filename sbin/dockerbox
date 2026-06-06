@@ -41,6 +41,8 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${SLEEP:=/bin/sleep}"
 : "${BHYVECTL:=/usr/sbin/bhyvectl}"
 : "${SERVICE:=/usr/sbin/service}"
+: "${MOUNT_NULLFS:=/sbin/mount_nullfs}"
+: "${UMOUNT:=/sbin/umount}"
 
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
 : "${NMDM_KO:=/boot/kernel/nmdm.ko}"
@@ -70,11 +72,14 @@ NMDM_B="${NMDM_DEVICE}.1B"
 help_msg="Usage: dockerbox command
 
 command:
-  start         start dockerbox
-  stop          stop dockerbox
-  console       connect to dockerbox console
-  status        show dockerbox status
-  resize size   extend docker image with size of <size>
+  start             start dockerbox
+  stop              stop dockerbox
+  console           connect to dockerbox console
+  status            show dockerbox status
+  fetch             fetch dockerbox root disk image
+  resize SIZE       extend docker disk image with size of SIZE
+  mount SRC TARGET  mount SRC path to TARGET path under the shared folder
+  umount TARGET     umount TARGET path
 "
 
 log() {
@@ -384,6 +389,7 @@ vm_manager() {
   cpu=1
   memory=1024M
   console="yes"
+  shared_folder="/dockerbox"
 
   log info "Pulling options from configuration file"
   . ${CONFIG}
@@ -394,9 +400,14 @@ vm_manager() {
   check_docker_image
   check_docker_image_fs
 
+  if [ ! -d "${shared_folder}" ]; then
+    log warn "Shared folder ${shared_folder} not found. Creating ${shared_folder}."
+    ${MKDIR} -p ${shared_folder}
+  fi
+
   _tap="$(get_tap_interface)"
   _grub_args="-m ${DEVICE_MAP} -r hd0,msdos1 -M ${memory}"
-  _bhyve_args="-A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -s 4:0,virtio-blk,${DOCKER_IMAGE} -c ${cpu} -m ${memory}"
+  _bhyve_args="-A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -s 4:0,virtio-blk,${DOCKER_IMAGE} -s 5:0,virtio-9p,shared_folder=${shared_folder} -c ${cpu} -m ${memory}"
 
   if [ "${console}" = "yes" ]; then
     check_nmdm
@@ -546,8 +557,8 @@ dockerbox_resize() {
 }
 
 dockerbox_fetch() {
-  DISK_IMG_SUM=4d2d08aebdab6247ce14b68886e0e3eb4afa8bb09af30df55064a7046223781b
-  DISKVERSION=0.4.0
+  DISK_IMG_SUM=a430e54a8e73abd140a4408412aa165dab42ae1f4c46c017908e9e3b30cacf3e
+  DISKVERSION=0.4.1
   DISKRELEASE=dockerbox-img-${DISKVERSION}
   TMPDIR=/tmp
 
@@ -576,6 +587,34 @@ dockerbox_fetch() {
   log info "Dockerbox disk image v${DISKVERSION} installed to ${DISK_IMAGE}"
 }
 
+dockerbox_mount() {
+  if [ -z "$2" ]; then
+    echo "Usage: dockerbox mount SRC_PATH TARGET_PATH"
+    echo "  Note that TARGET_PATH would be automatically prepended with shared folder path."
+    exit 1
+  fi
+
+  shared_folder="/dockerbox"
+  . ${CONFIG}
+
+  src_path="$1"
+  target_path="${shared_folder}$2"
+  echo "Mounting ${src_path} to ${target_path}."
+  ${MKDIR} -p ${target_path}
+  ${MOUNT_NULLFS} ${src_path} ${target_path}
+}
+
+dockerbox_umount() {
+  if [ -z "$1" ]; then
+    echo "Usage: dockerbox umount TARGET_PATH"
+  fi
+
+  shared_folder="/dockerbox"
+  . ${CONFIG}
+
+  ${UMOUNT} "${shared_folder}$1"
+}
+
 
 command="$1"
 shift
@@ -589,6 +628,8 @@ case ${command} in
   resize) dockerbox_resize $@;;
   poststart) dockerbox_poststart;;
   prestop) dockerbox_prestop;;
+  mount) dockerbox_mount $@;;
+  umount) dockerbox_umount $@;;
   _manage_vm) vm_manager;;
   *) ${ECHO} "${help_msg}";;
 esac
