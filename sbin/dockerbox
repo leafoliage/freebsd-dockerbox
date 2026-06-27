@@ -437,10 +437,9 @@ dockerbox_start() {
   local _pid
   local _start_wait_max=30
 
-  _pid="$(get_daemon_pid)"
-
-  if [ -n "${_pid}" ]; then
-    log warn "${DOCKERBOX_VM} is already run by PID ${_pid}, left intact"
+  if get_dockerbox_status; then
+    _pid="$(get_dockerbox_pid)"
+    log warn "${DOCKERBOX_VM} is already running as PID ${_pid}, left intact"
     return 1
   fi
 
@@ -461,6 +460,7 @@ dockerbox_start() {
     ${SLEEP} 1
 
     if get_dockerbox_status; then
+      _pid="$(get_dockerbox_pid)"
       log info "${DOCKERBOX_VM} has started as PID ${_pid}"
       ${ECHO} "${DOCKERBOX_VM} started"
       exit
