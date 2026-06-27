@@ -45,7 +45,7 @@ make fetch-disk
 Install helper packages.
 
 ```sh
-pkg install grub2-bhyve e2fsprogs docker-cli docker-compose
+pkg install grub2-bhyve e2fsprogs docker-cli docker-compose docker-buildx
 ```
 
 > There is a recent patch to `grub2-bhve` and `docker-compose`; `docker` would be renamed to `docker-cli`. Please make sure the "latest" package repository is used instead of quarterly. Check with `pkg -vv`. Otherwise, `grub2-bhyve` should be built from port.
