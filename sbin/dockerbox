@@ -43,6 +43,7 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${SERVICE:=/usr/sbin/service}"
 : "${MOUNT_NULLFS:=/sbin/mount_nullfs}"
 : "${UMOUNT:=/sbin/umount}"
+: "${MOUNT:=/sbin/mount}"
 
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
 : "${NMDM_KO:=/boot/kernel/nmdm.ko}"
@@ -473,7 +474,7 @@ dockerbox_start() {
 
 dockerbox_poststart() {
   if [ -n "$(${SERVICE} -e | ${GREP} dockerbox-broker)" ]; then
-    service dockerbox-broker start
+    ${SERVICE} dockerbox-broker start
   fi
 }
 
@@ -504,8 +505,19 @@ dockerbox_console() {
 
 dockerbox_prestop() {
   if [ -n "$(${SERVICE} -e | ${GREP} dockerbox-broker)" ]; then
-    service dockerbox-broker stop
+    ${SERVICE} dockerbox-broker stop
   fi
+}
+
+clean_mount() {
+  . ${CONFIG}
+  ${MOUNT} -t nullfs -p | ${AWK} '$2 ~ "^'"${shared_folder}"'/" {print $2}' | \
+  while read -r target; do
+    log info "Umounting ${target}"
+    if ! ${UMOUNT} -t nullfs "${target}"; then
+      log warn "Failed to unmount ${target}"
+    fi
+  done
 }
 
 dockerbox_stop() {
@@ -523,6 +535,8 @@ dockerbox_stop() {
   ${RM} -f ${DOCKERBOX_PID_FILE}
   ${RM} -f ${DAEMON_PID_FILE}
   log info "Dockerbox stopped: killed pid=${_pid}"
+
+  clean_mount
 }
 
 dockerbox_status() {
