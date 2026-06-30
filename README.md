@@ -24,6 +24,20 @@ They are automatically started by dockerbox in `dockerbox poststart` command if 
 
 ## Quickstart
 
+### Install from pkg
+
+Install required packages.
+
+```sh
+pkg install dockerbox docker-cli docker-compose docker-buildx
+```
+
+Fetch dockerbox disk image.
+
+```sh
+dockerbox fetch
+```
+
 ### Install from source
 
 To install from source, clone this repository and run `make install`.
