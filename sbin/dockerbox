@@ -571,8 +571,8 @@ dockerbox_resize() {
 }
 
 dockerbox_fetch() {
-  DISK_IMG_SUM=a430e54a8e73abd140a4408412aa165dab42ae1f4c46c017908e9e3b30cacf3e
-  DISKVERSION=0.4.1
+  DISK_IMG_SUM=5c1d1e04f3ea1a2ac89547f6982b2db6d68ca1da152081dfffcd7796b39f5bd9
+  DISKVERSION=0.4.2
   DISKRELEASE=dockerbox-img-${DISKVERSION}
   TMPDIR=/tmp
 
