@@ -408,7 +408,7 @@ vm_manager() {
 
   _tap="$(get_tap_interface)"
   _grub_args="-m ${DEVICE_MAP} -r hd0,msdos1 -M ${memory}"
-  _bhyve_args="-A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -s 4:0,virtio-blk,${DOCKER_IMAGE} -s 5:0,virtio-9p,shared_folder=${shared_folder} -c ${cpu} -m ${memory}"
+  _bhyve_args="-A -H -P -s 0:0,hostbridge -s 1:0,lpc -s 2:0,virtio-net,${_tap} -s 3:0,virtio-blk,${DISK_IMAGE} -s 4:0,virtio-blk,${DOCKER_IMAGE} -s 5:0,virtio-9p,shared_folder=${shared_folder} -s 6:0,virtio-9p,dockerbox_config=${CONF_DIR} -c ${cpu} -m ${memory}"
 
   if [ "${console}" = "yes" ]; then
     check_nmdm
