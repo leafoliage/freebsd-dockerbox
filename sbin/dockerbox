@@ -44,6 +44,7 @@ CONF_DIR=/usr/local/etc/dockerbox
 : "${MOUNT_NULLFS:=/sbin/mount_nullfs}"
 : "${UMOUNT:=/sbin/umount}"
 : "${MOUNT:=/sbin/mount}"
+: "${CAT:=/bin/cat}"
 
 : "${VMM_KO:=/boot/kernel/vmm.ko}"
 : "${NMDM_KO:=/boot/kernel/nmdm.ko}"
@@ -69,6 +70,9 @@ DOCKERBOX_PID_FILE=/var/run/dockerbox.pid
 NMDM_DEVICE=/dev/nmdm-dockerbox
 NMDM_A="${NMDM_DEVICE}.1A"
 NMDM_B="${NMDM_DEVICE}.1B"
+
+DISK_IMG_SUM=52167a8df43a8d3643f15281fd629005799f8cd7f2df54af4f2b7ae590c22259
+DISKVERSION=0.4.3
 
 help_msg="Usage: dockerbox command
 
@@ -448,6 +452,11 @@ dockerbox_start() {
     exit 1
   fi
 
+  installed_disk_version=$(${CAT} ${DISK_VERSION_FILE})
+  if [ ! "${installed_disk_version}" = "${DISKVERSION}" ]; then
+    log warn "Disk image version (${installed_disk_version}) mismatch script expected version (${DISKVERSION}). Consider upgrade."
+  fi
+
   log info "Start ${DOCKERBOX_VM} daemon"
   ${DAEMON} -p ${DOCKERBOX_PID_FILE} -P ${DAEMON_PID_FILE} -t "${VM_MANAGER_DAEMON_ID}" "${0}" _manage_vm
 
@@ -571,8 +580,6 @@ dockerbox_resize() {
 }
 
 dockerbox_fetch() {
-  DISK_IMG_SUM=5c1d1e04f3ea1a2ac89547f6982b2db6d68ca1da152081dfffcd7796b39f5bd9
-  DISKVERSION=0.4.2
   DISKRELEASE=dockerbox-img-${DISKVERSION}
   TMPDIR=/tmp
 
