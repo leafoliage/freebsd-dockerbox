@@ -167,6 +167,7 @@ nat_mask=24
 console=yes
 start_wait_timeout=30
 shared_folder=/dockerbox
+#nfs_folder=/dockerbox-nfs # off by default
 ```
 
 Refer to [wiki/Configuration](https://github.com/leafoliage/freebsd-dockerbox/wiki/Configuration) for details.

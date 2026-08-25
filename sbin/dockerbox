@@ -318,6 +318,29 @@ check_nmdm() {
   assert_kmod_loaded "nmdm" "${NMDM_KO}"
 }
 
+check_nfs() {
+  nfs_folder="$1"
+  if [ -d "${nfs_folder}" ]; then
+    log warn "Configuring NFS. ${nfs_folder} will be exported. If the export fails, dockerbox will not mount this export."
+    if ! ${GREP} -Eq "${nfs_folder}[[:blank:]]+${DOCKERBOX_IP}" /etc/exports; then
+      ${ECHO} "${nfs_folder} ${DOCKERBOX_IP}" >> /etc/exports
+    fi
+    ${SERVICE} nfsd onerestart >/dev/null 2>&1
+    ${SERVICE} mountd onereload
+  fi
+}
+
+unexport_nfs() {
+  nfs_folder="$1"
+  [ -z "${nfs_folder}" ] && return 0
+
+  if ${GREP} -Eq "^${nfs_folder}[[:blank:]]+${DOCKERBOX_IP}[[:blank:]]*$" /etc/exports; then
+    log warn "NFS unexporting ${nfs_folder}"
+    ${SED} -i '' -E "\#^${nfs_folder}[[:blank:]]+${DOCKERBOX_IP}[[:blank:]]*\$#d" /etc/exports
+    ${SERVICE} mountd onereload
+  fi
+}
+
 get_daemon_pid() {
   [ -f ${DAEMON_PID_FILE} ] && cat ${DAEMON_PID_FILE}
 }
@@ -395,12 +418,14 @@ vm_manager() {
   memory=1024M
   console="yes"
   shared_folder="/dockerbox"
+  nfs_folder=""
 
   log info "Pulling options from configuration file"
   . ${CONFIG}
 
   check_vmm
   check_nat
+  check_nfs "${nfs_folder}"
   check_device_map
   check_docker_image
   check_docker_image_fs
@@ -435,6 +460,7 @@ vm_manager() {
 
   destroy_tap
   destroy_bridge
+  unexport_nfs "${nfs_folder}"
 }
 
 dockerbox_start() {
