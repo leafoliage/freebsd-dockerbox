@@ -71,7 +71,7 @@ NMDM_DEVICE=/dev/nmdm-dockerbox
 NMDM_A="${NMDM_DEVICE}.1A"
 NMDM_B="${NMDM_DEVICE}.1B"
 
-DISK_IMG_SUM=28b43492bc2c328f7d5cc50ed54129195e06ce57db434c04e5ebb12792d3da6c
+DISK_IMG_SUM=d022c22d70350f802aa944008239ccc66cf1c25d496de40af6d343d0ffeea11f
 DISKVERSION=0.4.4
 
 help_msg="Usage: dockerbox command
@@ -567,8 +567,14 @@ dockerbox_stop() {
   log info "Stopping guest ${DOCKERBOX_VM}, managed by PID ${_pid}"
   ${BHYVECTL} --force-poweroff --vm=${DOCKERBOX_VM}
   ${BHYVECTL} --destroy --vm=${DOCKERBOX_VM}
-  ${RM} -f ${DOCKERBOX_PID_FILE}
-  ${RM} -f ${DAEMON_PID_FILE}
+
+  for i in $(${SEQ} 1 ${_start_wait_max}); do
+    ${SLEEP} 1
+
+    if ! get_dockerbox_status; then
+      break
+    fi
+  done
   log info "Dockerbox stopped: killed pid=${_pid}"
 
   clean_mount
