@@ -162,6 +162,7 @@ dockerbox fetch
 cpu=1
 memory=1024M
 ext_if=auto
+dockerbox_ip=10.0.0.1
 nat_ip=10.0.0.254
 nat_mask=24
 console=yes

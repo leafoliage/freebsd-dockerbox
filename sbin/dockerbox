@@ -71,8 +71,8 @@ NMDM_DEVICE=/dev/nmdm-dockerbox
 NMDM_A="${NMDM_DEVICE}.1A"
 NMDM_B="${NMDM_DEVICE}.1B"
 
-DISK_IMG_SUM=d022c22d70350f802aa944008239ccc66cf1c25d496de40af6d343d0ffeea11f
-DISKVERSION=0.4.4
+DISK_IMG_SUM=413c9eb72b828eb329657e17b87b42acfd24562cadab8e117621e1456e7c125a
+DISKVERSION=0.4.5
 
 help_msg="Usage: dockerbox command
 
@@ -144,7 +144,6 @@ get_tap_interface() {
 }
 
 check_ext_if() {
-  . ${CONFIG}
   ${IFCONFIG} | ${GREP} ${ext_if} -c
 }
 
@@ -191,13 +190,6 @@ detect_ext_if() {
 check_pf() {
   assert_kmod_loaded "pf" "${PF_KO}"
 
-  nat_ip=${NAT_IP}
-  nat_mask=24
-
-  log info "Pulling options from configuration file"
-  check_configuration ${CONFIG}
-  . ${CONFIG}
-
   if [ "${ext_if}" = "auto" ]; then
     log info "ext_if=auto configured. Detecting external interface"
     ext_if=$(detect_ext_if)
@@ -241,14 +233,6 @@ create_bridge() {
   else
     log warn "Bridge interface already exists: ${DOCKERBOX_IF}, skipping creation"
   fi
-
-  check_configuration ${CONFIG}
-
-  nat_ip=${NAT_IP}
-  nat_mask=24
-
-  log info "Pulling options from configuration file"
-  . ${CONFIG}
 
   ${IFCONFIG} ${DOCKERBOX_IF} inet ${nat_ip}/${nat_mask} 2>&1 | capture_output debug ifconfig
 }
@@ -322,8 +306,8 @@ check_nfs() {
   nfs_folder="$1"
   if [ -d "${nfs_folder}" ]; then
     log warn "Configuring NFS. ${nfs_folder} will be exported. If the export fails, dockerbox will not mount this export."
-    if ! ${GREP} -Eq "${nfs_folder}[[:blank:]]+${DOCKERBOX_IP}" /etc/exports; then
-      ${ECHO} "${nfs_folder} ${DOCKERBOX_IP}" >> /etc/exports
+    if ! ${GREP} -Eq "${nfs_folder}[[:blank:]]+${dockerbox_ip}" /etc/exports; then
+      ${ECHO} "${nfs_folder} ${dockerbox_ip}" >> /etc/exports
     fi
     ${SERVICE} nfsd onerestart >/dev/null 2>&1
     ${SERVICE} mountd onereload
@@ -334,9 +318,9 @@ unexport_nfs() {
   nfs_folder="$1"
   [ -z "${nfs_folder}" ] && return 0
 
-  if ${GREP} -Eq "^${nfs_folder}[[:blank:]]+${DOCKERBOX_IP}[[:blank:]]*$" /etc/exports; then
+  if ${GREP} -Eq "^${nfs_folder}[[:blank:]]+${dockerbox_ip}[[:blank:]]*$" /etc/exports; then
     log warn "NFS unexporting ${nfs_folder}"
-    ${SED} -i '' -E "\#^${nfs_folder}[[:blank:]]+${DOCKERBOX_IP}[[:blank:]]*\$#d" /etc/exports
+    ${SED} -i '' -E "\#^${nfs_folder}[[:blank:]]+${dockerbox_ip}[[:blank:]]*\$#d" /etc/exports
     ${SERVICE} mountd onereload
   fi
 }
@@ -351,7 +335,7 @@ get_dockerbox_pid() {
 
 get_dockerbox_status() {
   if [ -n "$(get_dockerbox_pid)" ]; then
-    if ${FETCH} -qo /dev/null --timeout=1 "http://${DOCKERBOX_IP}:${DOCKERBOX_PORT}/_ping" > /dev/null 2>&1; then
+    if ${FETCH} -qo /dev/null --timeout=1 "http://${dockerbox_ip}:${DOCKERBOX_PORT}/_ping" > /dev/null 2>&1; then
       return 0
     else
       return 1
@@ -411,17 +395,6 @@ vm_manager() {
   local _bhyve_args
 
   log info "Starting dockerbox"
-
-  check_configuration ${CONFIG}
-
-  cpu=1
-  memory=1024M
-  console="yes"
-  shared_folder="/dockerbox"
-  nfs_folder=""
-
-  log info "Pulling options from configuration file"
-  . ${CONFIG}
 
   check_vmm
   check_nat
@@ -486,9 +459,6 @@ dockerbox_start() {
   log info "Start ${DOCKERBOX_VM} daemon"
   ${DAEMON} -p ${DOCKERBOX_PID_FILE} -P ${DAEMON_PID_FILE} -t "${VM_MANAGER_DAEMON_ID}" "${0}" _manage_vm
 
-  check_configuration ${CONFIG}
-  . ${CONFIG}
-
   _start_wait_max=${start_wait_timeout}
 
   for i in $(${SEQ} 1 ${_start_wait_max}); do
@@ -545,7 +515,6 @@ dockerbox_prestop() {
 }
 
 clean_mount() {
-  . ${CONFIG}
   ${MOUNT} -t nullfs -p | ${AWK} '$2 ~ "^'"${shared_folder}"'/" {print $2}' | \
   while read -r target; do
     log info "Umounting ${target}"
@@ -568,7 +537,7 @@ dockerbox_stop() {
   ${BHYVECTL} --force-poweroff --vm=${DOCKERBOX_VM}
   ${BHYVECTL} --destroy --vm=${DOCKERBOX_VM}
 
-  for i in $(${SEQ} 1 ${_start_wait_max}); do
+  for i in $(${SEQ} 1 ${start_wait_timeout}); do
     ${SLEEP} 1
 
     if ! get_dockerbox_status; then
@@ -647,9 +616,6 @@ dockerbox_mount() {
     exit 1
   fi
 
-  shared_folder="/dockerbox"
-  . ${CONFIG}
-
   src_path="$1"
   target_path="${shared_folder}$2"
   echo "Mounting ${src_path} to ${target_path}."
@@ -662,15 +628,30 @@ dockerbox_umount() {
     echo "Usage: dockerbox umount TARGET_PATH"
   fi
 
-  shared_folder="/dockerbox"
-  . ${CONFIG}
-
   ${UMOUNT} "${shared_folder}$1"
+}
+
+load_config() {
+  cpu=1
+  memory=1024M
+  ext_if=auto
+  dockerbox_ip=$DOCKERBOX_IP
+  nat_ip=$NAT_IP
+  nat_mask=24
+  console="yes"
+  start_wait_timeout=30
+  shared_folder="/dockerbox"
+  nfs_folder=""
+
+  check_configuration ${CONFIG}
+  . ${CONFIG}
 }
 
 
 command="$1"
 shift
+
+load_config
 
 case ${command} in
   start) dockerbox_start;;
